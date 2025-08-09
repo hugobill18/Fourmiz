@@ -24,8 +24,9 @@ public class JeuWin implements ActionListener,ChangeListener
 	JButton start,stop,step, charge;
 	JPanel command;
 	JSlider cursor;
-	JCheckBox grille;
-	public JeuWin(){
+        JCheckBox grille;
+        JFileChooser chooser;
+        public JeuWin(){
 		JFrame.setDefaultLookAndFeelDecorated(true);	// Etiliser decorations Swing
 		JFrame win = new JFrame("Fourmiz");				// Créer la fenêtre avec titre
 		m = new Monde("terrain.dat"); 					// Créer un objet de type monde qui implémente terrain de Jeu
@@ -52,13 +53,18 @@ public class JeuWin implements ActionListener,ChangeListener
 		command.add(step);
 		command.add(cursor);
 		command.add(grille);
-		command.add(charge);
-		
-		win.getContentPane().add(jp,BorderLayout.CENTER);
+                command.add(charge);
+
+                chooser = new JFileChooser("../fourmiz");
+                FileFilter dat = new FiltreSimple("Fichiers dat",".dat");
+                chooser.addChoosableFileFilter(dat);
+
+                win.getContentPane().add(jp,BorderLayout.CENTER);
 		win.getContentPane().add(command,BorderLayout.SOUTH);
 		win.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);	// Quitter l'appui lors d'un appui sur X
 		win.setSize(800,600);								// Etablir les dimensions initiales
 		win.setLocationRelativeTo(null);					// Centrer la fenêtre
+                win.setVisible(true);
 	}
 	
 	public void actionPerformed(ActionEvent e) {
@@ -72,16 +78,11 @@ public class JeuWin implements ActionListener,ChangeListener
 			jp.stop();
 			jp.step();
 		}
-		if (e.getSource().equals(charge)) { // Clic sur le boutton charger
-			jp.stop();
-		    JFileChooser chooser = new JFileChooser("../fourmiz");
-		    // Note: source for ExampleFileFilter can be found in FileChooserDemo,
-		    // under the demo/jfc directory in the JDK.
-		    FileFilter dat = new FiltreSimple("Fichiers dat",".dat");
-		    chooser.addChoosableFileFilter(dat);
-		    int returnVal = chooser.showOpenDialog(null);
-		    if(returnVal == JFileChooser.APPROVE_OPTION) {
-		       try {
+                if (e.getSource().equals(charge)) { // Clic sur le boutton charger
+                        jp.stop();
+                    int returnVal = chooser.showOpenDialog(null);
+                    if(returnVal == JFileChooser.APPROVE_OPTION) {
+                       try {
 		    	 
 				m.chargement(chooser.getSelectedFile().getName());
 				jp.init(m);
