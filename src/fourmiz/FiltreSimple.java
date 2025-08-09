@@ -3,18 +3,18 @@ import javax.swing.filechooser.FileFilter;
 import java.io.File;
 
 public class FiltreSimple extends FileFilter{
-	   //Description et extension accept�e par le filtre
+	   //Description et extension acceptÃ©e par le filtre
 	   private String description;
 	   private String extension;
-	   //Constructeur � partir de la description et de l'extension accept�e
+	   //Constructeur Ã  partir de la description et de l'extension acceptÃ©e
 	   public FiltreSimple(String description, String extension){
 	      if(description == null || extension ==null){
-	         throw new NullPointerException("La description (ou extension) ne peut �tre null.");
+	         throw new NullPointerException("La description (ou extension) ne peut Ãªtre null.");
 	      }
 	      this.description = description;
 	      this.extension = extension;
 	   }
-	   //Impl�mentation de FileFilter
+	   //ImplÃ©mentation de FileFilter
 	   public boolean accept(File file){
 	      if(file.isDirectory()) { 
 	         return true; 

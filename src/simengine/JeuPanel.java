@@ -9,38 +9,38 @@ import javax.swing.JPanel;
 /**
  * *** PROJET FOURMIS ***
  *
- * La classe JeuPanel implémente le moteur de simulation du projet fourmis.
- * Elle encadre deux activités qui sont délèguées à un objet TerrainDeJeu:
+ * La classe JeuPanel implÃ©mente le moteur de simulation du projet fourmis.
+ * Elle encadre deux activitÃ©s qui sont dÃ©lÃ¨guÃ©es Ã  un objet TerrainDeJeu:
  *   (1) Afficher les blocs du terrain
- *   (2) Faire évoluer le terrain et ses fourmis.
+ *   (2) Faire Ã©voluer le terrain et ses fourmis.
  *   
  * (1) Affichage
  * La classe est un JPanel qui peut s'afficher dans une interface Java/Swing. 
- * Elle calcule la position de chaque bloc du terrain, et délègue l'affichage de chaque bloc
- * à TerrainDeJeu.
+ * Elle calcule la position de chaque bloc du terrain, et dÃ©lÃ¨gue l'affichage de chaque bloc
+ * Ã  TerrainDeJeu.
  * 
  * (2) Evolution
- * La classe utilise un Thread pour exécuter régulièrement une évolution du terrain, dont 
- * l'implémentation doit être fournit par TerrainDeJeu. L'évolution est 
- * consideré comme un séquence de "steps" (pas), espacés par un "stepDelay". 
- * L'exécution des pas est controlé par les méthodes start(), stop(), step() et 
+ * La classe utilise un Thread pour exÃ©cuter rÃ©guliÃ¨rement une Ã©volution du terrain, dont 
+ * l'implÃ©mentation doit Ãªtre fournit par TerrainDeJeu. L'Ã©volution est 
+ * considerÃ© comme un sÃ©quence de "steps" (pas), espacÃ©s par un "stepDelay". 
+ * L'exÃ©cution des pas est controlÃ© par les mÃ©thodes start(), stop(), step() et 
  * setStepDelay(int). 
  *
  * @author Justin Templemore-Finlayson
  * @author justin@umlteacher.eu
- * Décembre 2006
+ * DÃ©cembre 2006
  */
 public class JeuPanel extends JPanel implements Runnable
 {
-	// données du terrain
-	private TerrainDeJeu terrain;	// le terrain à afficher et à faire évoluer
-	private int lignes;				// stockée pour raisons de performance
-	private int colonnes;			// stockée pour raisons de performance
+	// donnÃ©es du terrain
+	private TerrainDeJeu terrain;	// le terrain Ã  afficher et Ã  faire Ã©voluer
+	private int lignes;				// stockÃ©e pour raisons de performance
+	private int colonnes;			// stockÃ©e pour raisons de performance
 	
-	// données d'affichage
+	// donnÃ©es d'affichage
 	private boolean grilleVisible;
 	
-	// données de contrôle du Thread d'évolution
+	// donnÃ©es de contrÃ´le du Thread d'Ã©volution
 	private int stepDelay;
 	private int stepCount = 0;
 	private boolean stepActive = false;
@@ -49,7 +49,7 @@ public class JeuPanel extends JPanel implements Runnable
 	/* ********************************** INITIALISATION *****************************************/
 	/**
 	 * Initialise le Jeu sans Terrain. Toute action par la suite n'aura pas d'effet, tant que un
-	 * Terrain n'a pas été fournie.
+	 * Terrain n'a pas Ã©tÃ© fournie.
 	 */
 	public JeuPanel ()
 	{
@@ -57,7 +57,7 @@ public class JeuPanel extends JPanel implements Runnable
 		this.stepDelay = 100;
 	}
 	/**
-	 * Initialise le Jeu avec le TerrainDeJeu à afficher
+	 * Initialise le Jeu avec le TerrainDeJeu Ã  afficher
 	 * @param terrain
 	 */
 	public JeuPanel (TerrainDeJeu terrain)
@@ -67,8 +67,8 @@ public class JeuPanel extends JPanel implements Runnable
 		init (terrain);
 	}
 	/**
-	 * (Re)initialise le Jeu avec un nouveau TerrainDeJeu. Cette méthode ne fait rien si le
-	 * Jeu est en cours d'évolution. L'évolution peut être arreté par un appel à stop().
+	 * (Re)initialise le Jeu avec un nouveau TerrainDeJeu. Cette mÃ©thode ne fait rien si le
+	 * Jeu est en cours d'Ã©volution. L'Ã©volution peut Ãªtre arretÃ© par un appel Ã  stop().
 	 * @param terrain
 	 */
 	public void init (TerrainDeJeu terrain)
@@ -86,7 +86,7 @@ public class JeuPanel extends JPanel implements Runnable
 	/* ************************************* EVOLUTION **************************************/
 	
 	/*
-	 * Code du Thread qui contrôle les pas de l'évolution. Un pas est exécutée toutes les 
+	 * Code du Thread qui contrÃ´le les pas de l'Ã©volution. Un pas est exÃ©cutÃ©e toutes les 
 	 * <code>delaiDePas</code> millisecondes.
 	 * @see java.lang.Runnable#run()
 	 */
@@ -106,7 +106,7 @@ public class JeuPanel extends JPanel implements Runnable
 		}
 	}
 	/**
-	 * (Re)démarre le thread d'évolution, si arreté. 
+	 * (Re)dÃ©marre le thread d'Ã©volution, si arretÃ©. 
 	 */
 	public synchronized void start()
 	{
@@ -118,7 +118,7 @@ public class JeuPanel extends JPanel implements Runnable
 		}
 	}
 	/**
-	 * Arrête le thread d'évolution, si démarré.
+	 * ArrÃªte le thread d'Ã©volution, si dÃ©marrÃ©.
 	 */
 	public synchronized void stop()
 	{
@@ -129,15 +129,15 @@ public class JeuPanel extends JPanel implements Runnable
 		}
 	}
 	/**
-	 * Execute un pas de l'évolution, si l'évolution n'est as active 
-	 * (en cours d'exécution automatique). 
+	 * Execute un pas de l'Ã©volution, si l'Ã©volution n'est as active 
+	 * (en cours d'exÃ©cution automatique). 
 	 */
 	public final void step()
 	{
 		if (!stepActive) stepBody();
 	}
 	/*
-	 * Effectue le véritable exécution d'un pas. 
+	 * Effectue le vÃ©ritable exÃ©cution d'un pas. 
 	 */
 	private synchronized final void stepBody ()
 	{
@@ -149,7 +149,7 @@ public class JeuPanel extends JPanel implements Runnable
 		}
 	}
 	/**
-	 * Modifie le delai entre les pas d'évolution (millisecondes)
+	 * Modifie le delai entre les pas d'Ã©volution (millisecondes)
 	 * @param stepDelay
 	 */
 	public synchronized void setStepDelay (int stepDelay)
@@ -157,7 +157,7 @@ public class JeuPanel extends JPanel implements Runnable
 		this.stepDelay = stepDelay;
 	}
 	/**
-	 * Récupère le delai entre les pas d'évolution (millisecondes)
+	 * RÃ©cupÃ¨re le delai entre les pas d'Ã©volution (millisecondes)
 	 * @return
 	 */
 	public synchronized int getStepDelay ()
@@ -165,7 +165,7 @@ public class JeuPanel extends JPanel implements Runnable
 		return stepDelay;
 	}
 	/**
-	 * Récupère le nombre de pas exécutées depuis la dernière initialisation du terrain
+	 * RÃ©cupÃ¨re le nombre de pas exÃ©cutÃ©es depuis la derniÃ¨re initialisation du terrain
 	 * @return
 	 */
 	public int getStepCount() 
@@ -176,7 +176,7 @@ public class JeuPanel extends JPanel implements Runnable
 	/* ********************************* AFFICHAGE *****************************************/
 	
 	/*
-	 * Héritée de JPanel 
+	 * HÃ©ritÃ©e de JPanel 
 	 */
 	public void paintComponent (Graphics g)
 	{
@@ -184,7 +184,7 @@ public class JeuPanel extends JPanel implements Runnable
 		int displayHeight = getHeight();
 		if (terrain == null)
 		{
-			String text = "Pas de terrain initialisé";
+			String text = "Pas de terrain initialisÃ©";
 			int textW = (int)(g.getFontMetrics().getStringBounds(text,g).getWidth());
 			int textH = (int)(g.getFontMetrics().getStringBounds(text,g).getHeight());
 			g.drawString(text, (displayWidth-textW)/2, (displayHeight-textH)/2+textH);
@@ -207,7 +207,7 @@ public class JeuPanel extends JPanel implements Runnable
 			g.setColor(Color.WHITE);
 			g.fillRect(xStart, yStart, terrainWidth, terrainHeight);
 	
-			// Déléguer l'affichage de chaque bloc à TerrainDeJeu
+			// DÃ©lÃ©guer l'affichage de chaque bloc Ã  TerrainDeJeu
 			Graphics graphicsForBlock = null;
 			for (int row=0; row<lignes; row++)
 				for (int col=0; col<colonnes; col++)
@@ -226,14 +226,14 @@ public class JeuPanel extends JPanel implements Runnable
 					g.drawLine(xStart, yStart+i*blockHeight, xStart+terrainWidth, yStart+i*blockHeight);
 			}
 	
-			// Déssiner la bordure du terrain
+			// DÃ©ssiner la bordure du terrain
 			g.setColor(Color.BLACK);
 			g.drawRect(xStart, yStart, terrainWidth, terrainHeight);
 		}
 	}
 
 	/**
-	 * Active / Désactive l'affichage de la grille des blocs.
+	 * Active / DÃ©sactive l'affichage de la grille des blocs.
 	 * @param grilleVisible
 	 */
 	public void setGrilleVisible(boolean grilleVisible)

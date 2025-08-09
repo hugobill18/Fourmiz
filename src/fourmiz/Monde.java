@@ -58,7 +58,7 @@ public class Monde implements TerrainDeJeu{
 			}
 			//Fermeture du fichier
 			in.close();
-	// Création des fourmis à la position (x_fourm,y_fourm)
+	// CrÃ©ation des fourmis Ã  la position (x_fourm,y_fourm)
 			terrain[x_fourm][y_fourm].setfourmis(fourmis);
 			fourmi=new Fourmi[fourmis];
 			for (i=0;i<fourmis;i++) fourmi[i]=new Fourmi(x_fourm,y_fourm);

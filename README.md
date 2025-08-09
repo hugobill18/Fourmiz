@@ -1,5 +1,7 @@
 # Fourmiz
 
+Les sources Java sont organisées dans `src/fourmiz` et `src/simengine`.
+
 ## Compilation
 
 ```bash
