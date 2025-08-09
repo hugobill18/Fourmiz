@@ -11,11 +11,11 @@ import java.awt.event.*;
 import javax.swing.filechooser.FileFilter;
 
 /**
- * Une simple interface de jeu, à améliorer.
+ * Une simple interface de jeu, Ã  amÃ©liorer.
  *
  * @author Justin Templemore-Finlayson
  * @author justin@umlteacher.eu
- * Décembre 2006
+ * DÃ©cembre 2006
  */
 public class JeuWin implements ActionListener,ChangeListener
 {
@@ -27,15 +27,15 @@ public class JeuWin implements ActionListener,ChangeListener
 	JCheckBox grille;
 	public JeuWin(){
 		JFrame.setDefaultLookAndFeelDecorated(true);	// Etiliser decorations Swing
-		JFrame win = new JFrame("Fourmiz");				// Créer la fenêtre avec titre
-		m = new Monde("terrain.dat"); 					// Créer un objet de type monde qui implémente terrain de Jeu
-		jp = new JeuPanel(m);							// Créer le jeu
+		JFrame win = new JFrame("Fourmiz");				// CrÃ©er la fenÃªtre avec titre
+		m = new Monde("terrain.dat"); 					// CrÃ©er un objet de type monde qui implÃ©mente terrain de Jeu
+		jp = new JeuPanel(m);							// CrÃ©er le jeu
 		
 		start=new JButton("Demarrer");
 		start.addActionListener(this);
 		stop=new JButton("Arreter");
 		stop.addActionListener(this);
-		step=new JButton("Pas à pas");
+		step=new JButton("Pas Ã  pas");
 		step.addActionListener(this);
 		charge=new JButton("Charger");
 		charge.addActionListener(this);
@@ -58,8 +58,8 @@ public class JeuWin implements ActionListener,ChangeListener
 		win.getContentPane().add(command,BorderLayout.SOUTH);
 		win.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);	// Quitter l'appui lors d'un appui sur X
 		win.setSize(800,600);								// Etablir les dimensions initiales
-		win.setLocationRelativeTo(null);					// Centrer la fenêtre
-		win.setVisible(true);								// Afficher la fenêtre
+		win.setLocationRelativeTo(null);					// Centrer la fenÃªtre
+				m.chargement(chooser.getSelectedFile().getAbsolutePath());
 	}
 	
 	public void actionPerformed(ActionEvent e) {
@@ -69,7 +69,7 @@ public class JeuWin implements ActionListener,ChangeListener
 		if (e.getSource().equals(stop)) { // Clic sur Arreter
 			jp.stop();
 		}
-		if (e.getSource().equals(step)) { // Clic sur Pas à pas
+		if (e.getSource().equals(step)) { // Clic sur Pas Ã  pas
 			jp.stop();
 			jp.step();
 		}
@@ -101,7 +101,7 @@ public class JeuWin implements ActionListener,ChangeListener
 	}
 
 	public void stateChanged(ChangeEvent e) {
-		if (e.getSource().equals(cursor)) { // Déplacement du curseur
+		if (e.getSource().equals(cursor)) { // DÃ©placement du curseur
 			jp.setStepDelay(500 - cursor.getValue()); // Sens normal : du +lent au +rapide
 		}
 		
