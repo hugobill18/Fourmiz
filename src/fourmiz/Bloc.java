@@ -48,7 +48,4 @@ abstract class Bloc{
 		if (mvt==false) fourmis--; // Fourmi sort du bloc
 		else fourmis++; // Fourmi entre dans le bloc
 	}
-	public boolean getposs(){
-		return possibility;
-	}
 }
