@@ -86,10 +86,9 @@ public class JeuWin implements ActionListener,ChangeListener
 		    	 
 				m.chargement(chooser.getSelectedFile().getName());
 				jp.init(m);
-				} catch (Exception e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
+                                } catch (Exception e1) {
+                                e1.printStackTrace();
+                        }
 		    }
 		}
 		if (e.getSource().equals(grille)) { // Clic sur la Checkbox
