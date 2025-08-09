@@ -5,25 +5,25 @@ import java.util.Random;
 /**
  * *** PROJET FOURMIS ***
  *
- * Cette classe fournit un ensemble de méthodes utilitaires pour le bon fonctionnement
+ * Cette classe fournit un ensemble de mÃ©thodes utilitaires pour le bon fonctionnement
  * de votre projet. 
  *
  * @author Justin Templemore-Finlayson
  * @author justin@umlteacher.eu
- * 28 déc. 06
+ * 28 dÃ©c. 06
  */
 public class Utilitaire 
 {
 	private static Random ranGen = new Random();
 	
 	/**
-	 * Cette méthode renvoi une valeur aléatoire dans l'intervalle [0..<code>poids.length-1</code>].
-	 * La génération de la caleur utilise des pondérations qui sont définies par le tableau poids, 
-	 * reçu en paramètre. 
+	 * Cette mÃ©thode renvoi une valeur alÃ©atoire dans l'intervalle [0..<code>poids.length-1</code>].
+	 * La gÃ©nÃ©ration de la caleur utilise des pondÃ©rations qui sont dÃ©finies par le tableau poids, 
+	 * reÃ§u en paramÃ¨tre. 
 	 * 
-	 * Exemple: Pour un tableau poids = { 1 1 10 1 }, la valeur "0" à un poids égal à "1", 
-	 * la valeur "2" à un poids égale à "10", etc. La valeur retournée a donc 1 chance sur 13
-	 * d'être "0", "1" ou "3", et 10 chances sur 13 d'être "2".
+	 * Exemple: Pour un tableau poids = { 1 1 10 1 }, la valeur "0" Ã  un poids Ã©gal Ã  "1", 
+	 * la valeur "2" Ã  un poids Ã©gale Ã  "10", etc. La valeur retournÃ©e a donc 1 chance sur 13
+	 * d'Ãªtre "0", "1" ou "3", et 10 chances sur 13 d'Ãªtre "2".
 	 */
 	public static int randomPondere (int[] poids)
 	{

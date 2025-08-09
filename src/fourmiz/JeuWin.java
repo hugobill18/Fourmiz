@@ -59,7 +59,6 @@ public class JeuWin implements ActionListener,ChangeListener
 		win.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);	// Quitter l'appui lors d'un appui sur X
 		win.setSize(800,600);								// Etablir les dimensions initiales
 		win.setLocationRelativeTo(null);					// Centrer la fenêtre
-				m.chargement(chooser.getSelectedFile().getAbsolutePath());
 	}
 	
 	public void actionPerformed(ActionEvent e) {
