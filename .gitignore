@@ -2,3 +2,5 @@
 *.gif
 *.rar
 out/
+build/
+.gradle/
