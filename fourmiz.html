@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fourmiz – Simulation de colonie de fourmis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 60% 20%, #12171f 0%, #080c12 100%);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #e6edf3;
+      padding: 24px;
+    }
+
+    /* ── Card ────────────────────────────────────────── */
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      padding: 32px 36px 28px;
+      box-shadow:
+        0 24px 64px rgba(0,0,0,.7),
+        0 0 0 1px rgba(255,255,255,.04) inset;
+      max-width: 660px;
+      width: 100%;
+    }
+
+    /* ── Title ───────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .title-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 4px 16px rgba(239,68,68,.35);
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      background: linear-gradient(120deg, #f97316 20%, #ef4444 80%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Stats pills ─────────────────────────────────── */
+    .stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: .78rem;
+      color: #8b949e;
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+
+    .stat strong {
+      color: #f0f6fc;
+      font-size: 1.05rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Canvas ──────────────────────────────────────── */
+    .canvas-wrap {
+      margin: 20px 0;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid #21262d;
+      background: #0d1117;
+      line-height: 0;
+    }
+
+    #sim {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* ── Controls ────────────────────────────────────── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 20px;
+      border-radius: 9px;
+      border: none;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s, box-shadow .15s;
+      letter-spacing: .02em;
+    }
+    .btn:hover:not(:disabled)   { opacity: .88; }
+    .btn:active:not(:disabled)  { transform: scale(.95); }
+    .btn:disabled               { opacity: .35; cursor: not-allowed; }
+
+    #btn-play        { background: #238636; color: #fff; box-shadow: 0 2px 10px rgba(35,134,54,.35); }
+    #btn-play.paused { background: #da3633; box-shadow: 0 2px 10px rgba(218,54,51,.35); }
+    #btn-step        { background: #1f6feb; color: #fff; box-shadow: 0 2px 10px rgba(31,111,235,.3); }
+    #btn-reset       { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+
+    .speed-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      font-size: .78rem;
+      color: #8b949e;
+      white-space: nowrap;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 110px;
+      height: 4px;
+      background: #30363d;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(249,115,22,.5);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 16px; height: 16px;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      border: none;
+      border-radius: 50%;
+    }
+
+    /* ── Legend ──────────────────────────────────────── */
+    .legend {
+      display: flex;
+      gap: 14px 20px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+      font-size: .75rem;
+      color: #8b949e;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .swatch {
+      width: 13px; height: 13px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .swatch-ant {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      background: #f97316;
+      box-shadow: 0 0 4px rgba(249,115,22,.6);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <div class="header">
+    <div class="title-group">
+      <div class="title-icon">🐜</div>
+      <h1>FOURMIZ</h1>
+    </div>
+    <div class="stats">
+      <div class="stat">Pas <strong id="stat-step">0</strong></div>
+      <div class="stat">Fourmis <strong id="stat-ants">5</strong></div>
+      <div class="stat">Vitesse <strong id="stat-speed">250 ms</strong></div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="sim"></canvas>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="btn-play">▶&nbsp; Démarrer</button>
+    <button class="btn" id="btn-step">⏭&nbsp; Pas à pas</button>
+    <button class="btn" id="btn-reset">↺&nbsp; Réinitialiser</button>
+
+    <div class="speed-wrap">
+      <span>Lent</span>
+      <input type="range" id="speed" min="0" max="8" value="5" />
+      <span>Rapide</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="swatch" style="background:linear-gradient(135deg,#e74c3c,#922b21)"></div>
+      Fourmilière
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#1c2128;border:1px solid #3d4450"></div>
+      Obstacle
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:linear-gradient(135deg,#2ecc71,#1a7a44)"></div>
+      Nourriture
+    </div>
+    <div class="legend-item">
+      <div class="swatch" style="background:#dfe6e9;border:1px solid #b2bec3"></div>
+      Case vide
+    </div>
+    <div class="legend-item">
+      <div class="swatch-ant"></div>
+      Fourmi
+    </div>
+  </div>
+
+</div><!-- .card -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  SIMULATION  —  port fidèle du code Java
+// ══════════════════════════════════════════════════════════════════
+
+/** Sélection pondérée : renvoie un indice dans [0, poids.length-1]. */
+function randomPondere(poids) {
+  let somme = 0;
+  for (const p of poids) somme += p;
+  let r = Math.floor(Math.random() * somme);
+  let cumul = 0;
+  for (let i = 0; i < poids.length; i++) {
+    cumul += poids[i];
+    if (r < cumul) return i;
+  }
+  return poids.length - 1;
+}
+
+// ── Blocs ──────────────────────────────────────────────────────────
+class Bloc {
+  constructor() { this.fourmis = 0; this.nourriture = 0; this.possibility = true; }
+  mvtfourmi(e) { this.fourmis += e ? 1 : -1; }
+  setfourmis(n) { this.fourmis = n; }
+  setnourriture(n) { this.nourriture = n; }
+  get type() { return 'vide'; }
+}
+class Fourmiliere extends Bloc { get type() { return 'fourmiliere'; } }
+class Obstacle extends Bloc {
+  constructor() { super(); this.possibility = false; }
+  setfourmis()    { throw new Error('Obstacle.setfourmis'); }
+  setnourriture() { throw new Error('Obstacle.setnourriture'); }
+  get type() { return 'obstacle'; }
+}
+class Vide extends Bloc { get type() { return 'vide'; } }
+
+// ── Fourmi ─────────────────────────────────────────────────────────
+const DIRS = [[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]];
+
+class Fourmi {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.nourriture = false;
+    this.poids = [12,12,12,12,12,12,12,12];
+  }
+  deplacerrand() {
+    const rand = randomPondere(this.poids);
+    this.x += DIRS[rand][0];
+    this.y += DIRS[rand][1];
+    // setpoids : reset cyclique depuis l'indice choisi (tout 12 = uniforme)
+    const ponde = [12,12,12,12,12,12,12,12];
+    let i = rand, j = 0;
+    while (j < 8) {
+      this.poids[i] = ponde[j];
+      if (i === 7) i = 0; else i++;
+      j++;
+    }
+  }
+}
+
+// ── Monde ──────────────────────────────────────────────────────────
+// Terrain de terrain.dat : 6 lignes × 5 colonnes, 5 fourmis
+const TERRAIN_SRC = [
+  [ 0,  0, -1,  0,  0],
+  [ 0,  0,  0,  0,  0],
+  [ 0, -2, -2, -2,  0],
+  [ 0,  0,  0,  0,  0],
+  [ 0,  0, 50,  0,  0],
+  [ 0,  0,  0,  0,  0],
+];
+const NB_FOURMIS = 5;
+
+function buildMonde() {
+  const lignes = TERRAIN_SRC.length;
+  const colonnes = TERRAIN_SRC[0].length;
+
+  const terrain = TERRAIN_SRC.map(row => row.map(v => {
+    if (v === -1) return new Fourmiliere();
+    if (v === -2) return new Obstacle();
+    const b = new Vide(); b.setnourriture(v); return b;
+  }));
+
+  // Localiser la fourmilière
+  let xf = 0, yf = 0;
+  for (let r = 0; r < lignes; r++)
+    for (let c = 0; c < colonnes; c++)
+      if (terrain[r][c].type === 'fourmiliere') { xf = r; yf = c; }
+
+  terrain[xf][yf].setfourmis(NB_FOURMIS);
+  const fourmi = Array.from({length: NB_FOURMIS}, () => new Fourmi(xf, yf));
+
+  return { lignes, colonnes, fourmis: NB_FOURMIS, terrain, fourmi };
+}
+
+function stepMonde(monde) {
+  const { lignes, colonnes, fourmis, terrain, fourmi } = monde;
+  for (let i = 0; i < fourmis; i++) {
+    terrain[fourmi[i].x][fourmi[i].y].mvtfourmi(false);
+    const xtmp = fourmi[i].x, ytmp = fourmi[i].y;
+    fourmi[i].deplacerrand();
+    let safety = 0;
+    while (
+      fourmi[i].x < 0 || fourmi[i].x >= lignes ||
+      fourmi[i].y < 0 || fourmi[i].y >= colonnes ||
+      !terrain[fourmi[i].x][fourmi[i].y].possibility
+    ) {
+      fourmi[i].x = xtmp; fourmi[i].y = ytmp;
+      fourmi[i].deplacerrand();
+      if (++safety > 1000) break; // évite boucle infinie (bug connu)
+    }
+    terrain[fourmi[i].x][fourmi[i].y].mvtfourmi(true);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  RENDU CANVAS
+// ══════════════════════════════════════════════════════════════════
+
+const CELL = 80;   // taille d'une cellule en px
+const GAP  = 8;    // espace entre cellules
+const PAD  = 16;   // marge du canvas
+
+const canvas = document.getElementById('sim');
+const ctx    = canvas.getContext('2d');
+
+let monde      = buildMonde();
+let stepCount  = 0;
+
+function initCanvas() {
+  canvas.width  = PAD * 2 + monde.colonnes * CELL + (monde.colonnes - 1) * GAP;
+  canvas.height = PAD * 2 + monde.lignes   * CELL + (monde.lignes   - 1) * GAP;
+}
+
+/** Coin supérieur gauche d'une cellule en pixels. */
+function cellXY(r, c) {
+  return { x: PAD + c * (CELL + GAP), y: PAD + r * (CELL + GAP) };
+}
+
+/** Dessine un rectangle arrondi dans le path courant. */
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y,     x + w, y + r);
+  ctx.lineTo(x + w,     y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r,     y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawObstacle(x, y) {
+  const R = 10;
+  // Fond sombre
+  rrect(x, y, CELL, CELL, R);
+  ctx.fillStyle = '#1c2128';
+  ctx.fill();
+
+  // Hachures
+  ctx.save();
+  ctx.clip();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#2a3140';
+  for (let d = -CELL; d < CELL * 2; d += 16) {
+    ctx.beginPath();
+    ctx.moveTo(x + d, y);
+    ctx.lineTo(x + d + CELL, y + CELL);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Bordure
+  rrect(x, y, CELL, CELL, R);
+  ctx.strokeStyle = '#3d4450';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawBloc(r, c) {
+  const { x, y } = cellXY(r, c);
+  const bloc = monde.terrain[r][c];
+  const R = 10;
+
+  if (bloc.type === 'obstacle') { drawObstacle(x, y); return; }
+
+  // ── Fond coloré ──────────────────────────────────────────────
+  let fillStyle;
+  if (bloc.type === 'fourmiliere') {
+    const g = ctx.createRadialGradient(x+CELL/2, y+CELL/2, 6, x+CELL/2, y+CELL/2, CELL * .75);
+    g.addColorStop(0, '#e74c3c');
+    g.addColorStop(1, '#922b21');
+    fillStyle = g;
+  } else if (bloc.nourriture > 0) {
+    const g = ctx.createRadialGradient(x+CELL/2, y+CELL/2, 4, x+CELL/2, y+CELL/2, CELL * .75);
+    g.addColorStop(0, '#2ecc71');
+    g.addColorStop(1, '#1a7a44');
+    fillStyle = g;
+  } else {
+    fillStyle = '#dfe6e9';
+  }
+
+  rrect(x, y, CELL, CELL, R);
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+
+  // Légère bordure
+  ctx.strokeStyle = bloc.type === 'fourmiliere' ? '#7b241c'
+                  : bloc.nourriture > 0          ? '#186a35'
+                  :                                '#b2bec3';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // ── Texte ─────────────────────────────────────────────────────
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (bloc.type === 'fourmiliere') {
+    // Petit label
+    ctx.font      = 'bold 12px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fillText('Nid', x + CELL/2, y + CELL/2 + 12);
+    // Icône
+    ctx.font = '26px serif';
+    ctx.fillText('🐜', x + CELL/2, y + CELL/2 - 8);
+
+  } else if (bloc.nourriture > 0) {
+    // Nombre de graines
+    ctx.font      = 'bold 24px Segoe UI Mono, monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(bloc.nourriture, x + CELL/2, y + CELL/2 - 7);
+    ctx.font      = '11px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.65)';
+    ctx.fillText('graines', x + CELL/2, y + CELL/2 + 14);
+  }
+}
+
+// Positions relatives pour 1–5 fourmis dans une cellule
+const ANT_OFFSETS = [
+  [[0,0]],
+  [[-14,0],[14,0]],
+  [[-14,-10],[14,-10],[0,12]],
+  [[-14,-10],[14,-10],[-14,10],[14,10]],
+  [[-14,-12],[14,-12],[0,0],[-14,12],[14,12]],
+];
+
+function drawAnts() {
+  // Regrouper par cellule
+  const cells = {};
+  for (let i = 0; i < monde.fourmi.length; i++) {
+    const f = monde.fourmi[i];
+    const key = `${f.x},${f.y}`;
+    if (!cells[key]) cells[key] = [];
+    cells[key].push(f);
+  }
+
+  for (const [key, ants] of Object.entries(cells)) {
+    const [r, c] = key.split(',').map(Number);
+    const { x, y } = cellXY(r, c);
+    const cx = x + CELL / 2;
+    const cy = y + CELL / 2;
+    const n  = ants.length;
+
+    const offsets = ANT_OFFSETS[Math.min(n, 5) - 1];
+    const shown   = Math.min(n, offsets.length);
+
+    for (let i = 0; i < shown; i++) {
+      const [ox, oy] = offsets[i];
+      const ax = cx + ox, ay = cy + oy;
+      const rad = 7;
+
+      // Halo
+      const grd = ctx.createRadialGradient(ax, ay, 0, ax, ay, rad * 2.5);
+      grd.addColorStop(0, 'rgba(249,115,22,.35)');
+      grd.addColorStop(1, 'rgba(249,115,22,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(ax, ay, rad * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Corps
+      ctx.beginPath();
+      ctx.arc(ax, ay, rad, 0, Math.PI * 2);
+      const bodyGrd = ctx.createRadialGradient(ax - 2, ay - 2, 1, ax, ay, rad);
+      bodyGrd.addColorStop(0, '#fdba74');
+      bodyGrd.addColorStop(1, '#c2410c');
+      ctx.fillStyle = bodyGrd;
+      ctx.fill();
+      ctx.strokeStyle = '#7c2d12';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    // Badge "+N" si plus de 5 fourmis
+    if (n > 5) {
+      const bx = x + CELL - 18, by = y + 10;
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.arc(bx, by, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('+' + (n - 5), bx, by);
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Fond du canvas
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Cellules
+  for (let r = 0; r < monde.lignes; r++)
+    for (let c = 0; c < monde.colonnes; c++)
+      drawBloc(r, c);
+
+  // Fourmis par-dessus
+  drawAnts();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CONTRÔLES
+// ══════════════════════════════════════════════════════════════════
+
+// Index 0 = lent … 8 = rapide
+const DELAY_MAP = [900, 600, 400, 250, 150, 100, 50, 20, 0];
+
+function getDelay()  { return DELAY_MAP[+document.getElementById('speed').value]; }
+function fmtDelay(d) { return d === 0 ? 'max' : d + ' ms'; }
+
+function updateStats() {
+  document.getElementById('stat-step').textContent  = stepCount;
+  document.getElementById('stat-ants').textContent  = monde.fourmis;
+  document.getElementById('stat-speed').textContent = fmtDelay(getDelay());
+}
+
+// ── Boucle d'animation ────────────────────────────────────────────
+let running     = false;
+let rafId       = null;
+let lastStepTs  = 0;
+
+function animate(ts) {
+  if (!running) return;
+  const delay = getDelay();
+  if (delay === 0 || ts - lastStepTs >= delay) {
+    stepMonde(monde);
+    stepCount++;
+    lastStepTs = ts;
+    draw();
+    updateStats();
+  }
+  rafId = requestAnimationFrame(animate);
+}
+
+function start() {
+  if (running) return;
+  running = true;
+  lastStepTs = performance.now();
+  const btn = document.getElementById('btn-play');
+  btn.textContent = '⏸\u00a0 Pause';
+  btn.classList.add('paused');
+  document.getElementById('btn-step').disabled = true;
+  rafId = requestAnimationFrame(animate);
+}
+
+function pause() {
+  running = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  const btn = document.getElementById('btn-play');
+  btn.textContent = '▶\u00a0 Démarrer';
+  btn.classList.remove('paused');
+  document.getElementById('btn-step').disabled = false;
+}
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  running ? pause() : start();
+});
+
+document.getElementById('btn-step').addEventListener('click', () => {
+  if (running) return;
+  stepMonde(monde);
+  stepCount++;
+  draw();
+  updateStats();
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  pause();
+  monde = buildMonde();
+  stepCount = 0;
+  draw();
+  updateStats();
+});
+
+document.getElementById('speed').addEventListener('input', () => {
+  updateStats();
+  // Réinitialise le timer pour que le changement soit immédiat
+  lastStepTs = performance.now();
+});
+
+// ── Init ──────────────────────────────────────────────────────────
+initCanvas();
+draw();
+updateStats();
+</script>
+
+</body>
+</html>
