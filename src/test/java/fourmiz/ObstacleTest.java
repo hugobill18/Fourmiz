@@ -1,25 +1,22 @@
 package fourmiz;
 
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+
+/**
+ * Tests for the Obstacle block.
+ * Obstacle is impassable and rejects any mutation of ant or food counts.
+ */
 public class ObstacleTest {
-    public static void main(String[] args) {
-        Obstacle obstacle = new Obstacle();
 
-        boolean threw = false;
-        try {
-            obstacle.setfourmis(1);
-        } catch (UnsupportedOperationException e) {
-            threw = true;
-        }
-        assert threw : "setfourmis should throw UnsupportedOperationException";
+    @Test(expected = UnsupportedOperationException.class)
+    public void setfourmis_throwsUnsupportedOperation() {
+        new Obstacle().setfourmis(1);
+    }
 
-        threw = false;
-        try {
-            obstacle.setnourriture(1);
-        } catch (UnsupportedOperationException e) {
-            threw = true;
-        }
-        assert threw : "setnourriture should throw UnsupportedOperationException";
-
-        System.out.println("Obstacle tests passed.");
+    @Test(expected = UnsupportedOperationException.class)
+    public void setnourriture_throwsUnsupportedOperation() {
+        new Obstacle().setnourriture(1);
     }
 }
