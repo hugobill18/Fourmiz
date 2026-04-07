@@ -1,5 +1,6 @@
 *.class
-*.dat
 *.gif
 *.rar
 out/
+build/
+.gradle/
