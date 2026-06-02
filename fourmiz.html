@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fourmiz — Simulation de Colonie de Fourmis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #12121f;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 12px 8px;
+      gap: 10px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      color: #f0c040;
+      letter-spacing: 2px;
+      text-shadow: 0 0 12px #f0c04066;
+    }
+
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+      background: #1e1e32;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px 14px;
+      max-width: 900px;
+      width: 100%;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+
+    .ctrl-group label { color: #aaa; white-space: nowrap; }
+
+    button {
+      background: #2a2a48;
+      color: #ddd;
+      border: 1px solid #444;
+      padding: 5px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: background 0.15s;
+    }
+    button:hover { background: #3a3a62; }
+    button.primary { background: #3a5a3a; border-color: #4a8a4a; color: #afa; }
+    button.primary:hover { background: #4a7a4a; }
+
+    input[type=range] { width: 90px; accent-color: #f0c040; cursor: pointer; }
+    input[type=number] {
+      width: 55px;
+      background: #1a1a30;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 3px;
+      padding: 3px 5px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+    input[type=file] { font-size: 0.75rem; color: #aaa; max-width: 160px; }
+
+    #canvas-wrapper {
+      border: 2px solid #333;
+      border-radius: 4px;
+      box-shadow: 0 0 24px #00000099;
+      background: #000;
+    }
+
+    canvas { display: block; }
+
+    #legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      font-size: 0.78rem;
+      color: #bbb;
+      justify-content: center;
+    }
+    .leg { display: flex; align-items: center; gap: 5px; }
+    .swatch { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #555; flex-shrink: 0; }
+
+    #stats {
+      font-size: 0.78rem;
+      color: #888;
+      text-align: center;
+      min-height: 1.2em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🐜 FOURMIZ</h1>
+
+<div id="controls">
+  <div class="ctrl-group">
+    <button id="btnStart" class="primary">▶ Démarrer</button>
+    <button id="btnStep">⏭ Pas</button>
+    <button id="btnReset">↺ Reset</button>
+  </div>
+  <div class="ctrl-group">
+    <label>Vitesse</label>
+    <input type="range" id="speed" min="1" max="20" value="5">
+    <span id="speedVal" style="min-width:20px">5</span>
+  </div>
+  <div class="ctrl-group">
+    <label>Fourmis</label>
+    <input type="number" id="antCount" min="1" max="300" value="40">
+  </div>
+  <div class="ctrl-group">
+    <label>Taille</label>
+    <input type="number" id="gridSize" min="10" max="80" value="35">
+  </div>
+  <div class="ctrl-group">
+    <button id="btnGenerate">🗺 Nouvelle carte</button>
+  </div>
+  <div class="ctrl-group">
+    <label>Charger .dat</label>
+    <input type="file" id="fileInput" accept=".dat">
+  </div>
+</div>
+
+<div id="canvas-wrapper">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="legend">
+  <div class="leg"><div class="swatch" style="background:#7a3a10"></div> Fourmilière</div>
+  <div class="leg"><div class="swatch" style="background:#1a8a1a"></div> Nourriture</div>
+  <div class="leg"><div class="swatch" style="background:#555"></div> Obstacle</div>
+  <div class="leg"><div class="swatch" style="background:#c8b87a"></div> Sol</div>
+  <div class="leg"><div class="swatch" style="background:#cc2200"></div> Phéromones</div>
+  <div class="leg"><div class="swatch" style="background:#111;border-color:#888"></div> Fourmi (cherche)</div>
+  <div class="leg"><div class="swatch" style="background:#ffaa00"></div> Fourmi (retour)</div>
+</div>
+
+<div id="stats"></div>
+
+<script>
+'use strict';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const CELL_EMPTY = 0;
+const CELL_NEST  = 1;
+const CELL_WALL  = 2;
+const CELL_FOOD  = 3;
+
+const PHEROMONE_DEPOSIT  = 8.0;
+const PHEROMONE_MAX      = 255.0;
+const PHEROMONE_DECAY    = 0.997;   // per step, close to 1 = slow evaporation
+const PHEROMONE_WEIGHT   = 4.0;     // bias multiplier toward pheromone cells
+const BASE_WEIGHT        = 12;
+const MAX_PATH_LEN       = 800;     // cap ant memory
+const RETRY_MOVES        = 24;      // max attempts before staying put
+
+// 8-directional deltas: NW N NE E SE S SW W
+const DIR_DR = [-1,-1,-1, 0, 1, 1, 1, 0];
+const DIR_DC = [-1, 0, 1, 1, 1, 0,-1,-1];
+
+// ─── State ───────────────────────────────────────────────────────────────────
+
+let grid = [];          // grid[row][col] = { type, food, pheromone }
+let ants  = [];
+let rows = 35, cols = 35;
+let nestRow = 0, nestCol = 0;
+let running = false;
+let stepCount = 0;
+let animId = null;
+let foodTotal = 0;
+let foodCollected = 0;
+
+// ─── Weighted Random ─────────────────────────────────────────────────────────
+
+function weightedRandom(weights) {
+  let sum = 0;
+  for (let i = 0; i < weights.length; i++) sum += weights[i];
+  if (sum <= 0) return Math.floor(Math.random() * weights.length);
+  let r = Math.random() * sum;
+  let cum = 0;
+  for (let i = 0; i < weights.length; i++) {
+    cum += weights[i];
+    if (r < cum) return i;
+  }
+  return weights.length - 1;
+}
+
+// ─── Ant ─────────────────────────────────────────────────────────────────────
+
+class Ant {
+  constructor(row, col) {
+    this.row = row;
+    this.col = col;
+    this.returning = false;
+    // Path recorded while searching (array of {row,col})
+    this.path = [{row, col}];
+    this.pathIdx = 0;
+  }
+
+  // Compute movement weights for searching ants (pheromone-biased)
+  _searchWeights() {
+    const w = new Array(8);
+    for (let d = 0; d < 8; d++) {
+      const nr = this.row + DIR_DR[d];
+      const nc = this.col + DIR_DC[d];
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || grid[nr][nc].type === CELL_WALL) {
+        w[d] = 0;
+      } else {
+        w[d] = BASE_WEIGHT + grid[nr][nc].pheromone * PHEROMONE_WEIGHT;
+      }
+    }
+    return w;
+  }
+
+  _moveRandom() {
+    const w = this._searchWeights();
+    for (let attempt = 0; attempt < RETRY_MOVES; attempt++) {
+      const d = weightedRandom(w);
+      if (w[d] === 0) continue;
+      const nr = this.row + DIR_DR[d];
+      const nc = this.col + DIR_DC[d];
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CELL_WALL) {
+        this.row = nr;
+        this.col = nc;
+        return;
+      }
+    }
+    // Stuck — stay put (avoid infinite loop around obstacles)
+  }
+
+  step() {
+    if (!this.returning) {
+      // ── Searching ──
+      this._moveRandom();
+      if (this.path.length < MAX_PATH_LEN) {
+        this.path.push({row: this.row, col: this.col});
+      }
+
+      const cell = grid[this.row][this.col];
+      if (cell.type === CELL_FOOD && cell.food > 0) {
+        cell.food--;
+        foodCollected++;
+        if (cell.food === 0) cell.type = CELL_EMPTY;
+        this.returning = true;
+        this.pathIdx = this.path.length - 1;
+      }
+
+    } else {
+      // ── Returning ── retrace recorded path
+      if (this.pathIdx > 0) {
+        this.pathIdx--;
+        this.row = this.path[this.pathIdx].row;
+        this.col = this.path[this.pathIdx].col;
+
+        // Deposit pheromone proportional to remaining path (stronger near food)
+        const distanceBonus = this.pathIdx / (this.path.length || 1);
+        const deposit = PHEROMONE_DEPOSIT * (1 + distanceBonus);
+        grid[this.row][this.col].pheromone = Math.min(
+          PHEROMONE_MAX,
+          grid[this.row][this.col].pheromone + deposit
+        );
+      }
+
+      // Reached nest?
+      if (this.row === nestRow && this.col === nestCol) {
+        this.returning = false;
+        this.path = [{row: nestRow, col: nestCol}];
+        this.pathIdx = 0;
+      }
+    }
+  }
+}
+
+// ─── Grid generation ─────────────────────────────────────────────────────────
+
+function makeCell(type = CELL_EMPTY, food = 0) {
+  return { type, food, pheromone: 0 };
+}
+
+function generateRandom(r, c, antCount) {
+  rows = r; cols = c;
+  grid = Array.from({length: rows}, () => Array.from({length: cols}, () => makeCell()));
+
+  // Nest: left-center area
+  nestRow = Math.floor(rows / 2);
+  nestCol = Math.floor(cols / 5);
+  grid[nestRow][nestCol] = makeCell(CELL_NEST);
+
+  // Walls (~13%)
+  const wallTarget = Math.floor(rows * cols * 0.13);
+  let placed = 0, tries = 0;
+  while (placed < wallTarget && tries < wallTarget * 10) {
+    tries++;
+    const wr = Math.floor(Math.random() * rows);
+    const wc = Math.floor(Math.random() * cols);
+    if (grid[wr][wc].type === CELL_EMPTY &&
+        !(Math.abs(wr - nestRow) <= 2 && Math.abs(wc - nestCol) <= 2)) {
+      grid[wr][wc] = makeCell(CELL_WALL);
+      placed++;
+    }
+  }
+
+  // Food zones: 3–5 clusters, scattered right of center
+  foodTotal = 0;
+  foodCollected = 0;
+  const zones = 3 + Math.floor(Math.random() * 3);
+  for (let z = 0; z < zones; z++) {
+    let fr, fc, att = 0;
+    do {
+      fr = Math.floor(Math.random() * rows);
+      fc = Math.floor(cols / 2 + Math.random() * (cols / 2));
+      att++;
+    } while (att < 200 && (grid[fr][fc].type !== CELL_EMPTY ||
+             (Math.abs(fr - nestRow) <= 3 && Math.abs(fc - nestCol) <= 3)));
+    // 2×2 to 3×3 cluster
+    const sz = 1 + Math.floor(Math.random() * 2);
+    for (let dr = -sz; dr <= sz; dr++) {
+      for (let dc = -sz; dc <= sz; dc++) {
+        const nr = fr + dr, nc = fc + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type === CELL_EMPTY) {
+          const qty = 15 + Math.floor(Math.random() * 25);
+          grid[nr][nc] = makeCell(CELL_FOOD, qty);
+          foodTotal += qty;
+        }
+      }
+    }
+  }
+
+  spawnAnts(antCount);
+  stepCount = 0;
+}
+
+function spawnAnts(count) {
+  ants = [];
+  for (let i = 0; i < count; i++) ants.push(new Ant(nestRow, nestCol));
+}
+
+// ─── .dat file parsing ───────────────────────────────────────────────────────
+
+function parseDat(text) {
+  const nums = text.trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+  let idx = 0;
+  const r = nums[idx++];
+  const c = nums[idx++];
+  const antCount = nums[idx++];
+  rows = r; cols = c;
+  grid = [];
+  foodTotal = 0; foodCollected = 0;
+  for (let i = 0; i < rows; i++) {
+    grid[i] = [];
+    for (let j = 0; j < cols; j++) {
+      const v = nums[idx++] ?? 0;
+      let type = CELL_EMPTY, food = 0;
+      if (v === -1) { type = CELL_NEST; nestRow = i; nestCol = j; }
+      else if (v === -2) { type = CELL_WALL; }
+      else if (v > 0)  { type = CELL_FOOD; food = v; foodTotal += v; }
+      grid[i][j] = { type, food, pheromone: 0 };
+    }
+  }
+  spawnAnts(antCount);
+  stepCount = 0;
+}
+
+// ─── Simulation step ─────────────────────────────────────────────────────────
+
+function simStep() {
+  for (const ant of ants) ant.step();
+
+  // Evaporate pheromones
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      const p = grid[i][j].pheromone;
+      if (p > 0) {
+        const np = p * PHEROMONE_DECAY;
+        grid[i][j].pheromone = np < 0.05 ? 0 : np;
+      }
+    }
+  }
+  stepCount++;
+}
+
+// ─── Rendering ───────────────────────────────────────────────────────────────
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function cellSize() {
+  const maxW = Math.min(window.innerWidth - 24, 780);
+  const maxH = Math.max(200, window.innerHeight - 320);
+  return Math.max(4, Math.floor(Math.min(maxW / cols, maxH / rows)));
+}
+
+function render() {
+  const cs = cellSize();
+  const W = cols * cs, H = rows * cs;
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width  = W;
+    canvas.height = H;
+  }
+
+  // Draw cells
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      const cell = grid[i][j];
+      const x = j * cs, y = i * cs;
+
+      let r, g, b;
+      switch (cell.type) {
+        case CELL_WALL:
+          r = 70; g = 70; b = 70; break;
+        case CELL_NEST:
+          r = 122; g = 58; b = 16; break;
+        case CELL_FOOD:
+          r = 26; g = 138; b = 26; break;
+        default: {
+          // Sand base, blended with pheromone (red-orange)
+          const t = Math.min(cell.pheromone / PHEROMONE_MAX, 1);
+          r = Math.round(200 + (204 - 200) * t - t * 40);  // 200 → 180ish
+          g = Math.round(176 - 140 * t);                    // 176 → 36
+          b = Math.round(100 - 100 * t);                    // 100 → 0
+          // Simplified: sand #c8b064, pheromone peak #cc2200
+          r = Math.round(200 * (1-t) + 204 * t);
+          g = Math.round(176 * (1-t) + 34 * t);
+          b = Math.round(100 * (1-t) + 0  * t);
+          break;
+        }
+      }
+
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x, y, cs, cs);
+
+      // Thin grid lines for larger cells
+      if (cs >= 8) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x + 0.25, y + 0.25, cs - 0.5, cs - 0.5);
+      }
+
+      // Food amount label
+      if (cell.type === CELL_FOOD && cs >= 14) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.45))}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(cell.food, x + cs / 2, y + cs / 2);
+      }
+
+      // Nest indicator
+      if (cell.type === CELL_NEST) {
+        const cx2 = x + cs / 2, cy2 = y + cs / 2;
+        ctx.fillStyle = '#ffdd88';
+        ctx.beginPath();
+        ctx.arc(cx2, cy2, Math.max(2, cs * 0.28), 0, Math.PI * 2);
+        ctx.fill();
+        if (cs >= 12) {
+          ctx.fillStyle = '#7a3a10';
+          ctx.font = `bold ${Math.max(7, Math.floor(cs * 0.35))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🏠', cx2, cy2);
+        }
+      }
+    }
+  }
+
+  // Draw ants
+  const antR = Math.max(1.2, cs * 0.2);
+  for (const ant of ants) {
+    const x = ant.col * cs + cs / 2;
+    const y = ant.row * cs + cs / 2;
+    ctx.fillStyle = ant.returning ? '#ffaa00' : '#0a0a0a';
+    ctx.beginPath();
+    ctx.arc(x, y, antR, 0, Math.PI * 2);
+    ctx.fill();
+    // Tiny outline for visibility
+    if (cs >= 8) {
+      ctx.strokeStyle = ant.returning ? '#ffeeaa' : '#555';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+
+  // Stats line
+  const searching = ants.filter(a => !a.returning).length;
+  const returning  = ants.filter(a => a.returning).length;
+  const pct = foodTotal > 0 ? Math.round(foodCollected / foodTotal * 100) : 0;
+  document.getElementById('stats').textContent =
+    `Étape: ${stepCount} | En recherche: ${searching} | En retour: ${returning} | Nourriture collectée: ${foodCollected}/${foodTotal} (${pct}%)`;
+}
+
+// ─── Animation loop ───────────────────────────────────────────────────────────
+
+function loop() {
+  if (!running) return;
+  const spd = parseInt(document.getElementById('speed').value, 10);
+  // spd 1→1 step/frame … spd 20→20 steps/frame
+  for (let s = 0; s < spd; s++) simStep();
+  render();
+  animId = requestAnimationFrame(loop);
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+
+const btnStart = document.getElementById('btnStart');
+btnStart.addEventListener('click', () => {
+  running = !running;
+  btnStart.textContent = running ? '⏸ Pause' : '▶ Démarrer';
+  if (running) animId = requestAnimationFrame(loop);
+});
+
+document.getElementById('btnStep').addEventListener('click', () => {
+  if (!running) { simStep(); render(); }
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  running = false;
+  btnStart.textContent = '▶ Démarrer';
+  cancelAnimationFrame(animId);
+  const antCount = parseInt(document.getElementById('antCount').value, 10);
+  spawnAnts(antCount);
+  // Reset pheromones and food
+  for (let i = 0; i < rows; i++)
+    for (let j = 0; j < cols; j++) {
+      grid[i][j].pheromone = 0;
+      if (grid[i][j].type === CELL_FOOD) grid[i][j].food = grid[i][j].food; // keep
+    }
+  stepCount = 0; foodCollected = 0;
+  render();
+});
+
+document.getElementById('btnGenerate').addEventListener('click', () => {
+  running = false;
+  btnStart.textContent = '▶ Démarrer';
+  cancelAnimationFrame(animId);
+  const antCount = parseInt(document.getElementById('antCount').value, 10);
+  const size     = parseInt(document.getElementById('gridSize').value, 10);
+  generateRandom(size, size, antCount);
+  render();
+});
+
+document.getElementById('speed').addEventListener('input', function() {
+  document.getElementById('speedVal').textContent = this.value;
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  running = false;
+  btnStart.textContent = '▶ Démarrer';
+  cancelAnimationFrame(animId);
+  const reader = new FileReader();
+  reader.onload = ev => { parseDat(ev.target.result); render(); };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+window.addEventListener('resize', () => { if (!running) render(); });
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+generateRandom(35, 35, 40);
+render();
+</script>
+</body>
+</html>
