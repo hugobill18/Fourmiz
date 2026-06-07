@@ -163,12 +163,12 @@ const CELL_NEST  = 1;
 const CELL_WALL  = 2;
 const CELL_FOOD  = 3;
 
-const PHEROMONE_DEPOSIT  = 8.0;
+const PHEROMONE_DEPOSIT  = 12.0;
 const PHEROMONE_MAX      = 255.0;
-const PHEROMONE_DECAY    = 0.997;   // per step, close to 1 = slow evaporation
-const PHEROMONE_WEIGHT   = 4.0;     // bias multiplier toward pheromone cells
+const PHEROMONE_DECAY    = 0.995;   // per step
+const PHEROMONE_WEIGHT   = 5.0;     // bias multiplier toward pheromone cells
 const BASE_WEIGHT        = 12;
-const MAX_PATH_LEN       = 800;     // cap ant memory
+const NEST_RETURN_BIAS   = 60;      // extra weight per unit closer to nest
 const RETRY_MOVES        = 24;      // max attempts before staying put
 
 // 8-directional deltas: NW N NE E SE S SW W
@@ -209,12 +209,9 @@ class Ant {
     this.row = row;
     this.col = col;
     this.returning = false;
-    // Path recorded while searching (array of {row,col})
-    this.path = [{row, col}];
-    this.pathIdx = 0;
   }
 
-  // Compute movement weights for searching ants (pheromone-biased)
+  // Weights for searching: base + pheromone attraction
   _searchWeights() {
     const w = new Array(8);
     for (let d = 0; d < 8; d++) {
@@ -229,11 +226,29 @@ class Ant {
     return w;
   }
 
-  _moveRandom() {
-    const w = this._searchWeights();
+  // Weights for returning: strongly biased toward nest by Chebyshev distance gain
+  _returnWeights() {
+    const curDist = Math.max(Math.abs(this.row - nestRow), Math.abs(this.col - nestCol));
+    const w = new Array(8);
+    for (let d = 0; d < 8; d++) {
+      const nr = this.row + DIR_DR[d];
+      const nc = this.col + DIR_DC[d];
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || grid[nr][nc].type === CELL_WALL) {
+        w[d] = 0;
+      } else {
+        const newDist = Math.max(Math.abs(nr - nestRow), Math.abs(nc - nestCol));
+        // Directions that bring the ant closer get a strong bonus
+        const gain = curDist - newDist; // +1 closer, 0 same, -1 farther
+        w[d] = Math.max(1, BASE_WEIGHT + gain * NEST_RETURN_BIAS);
+      }
+    }
+    return w;
+  }
+
+  _move(weights) {
     for (let attempt = 0; attempt < RETRY_MOVES; attempt++) {
-      const d = weightedRandom(w);
-      if (w[d] === 0) continue;
+      const d = weightedRandom(weights);
+      if (weights[d] === 0) continue;
       const nr = this.row + DIR_DR[d];
       const nc = this.col + DIR_DC[d];
       if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CELL_WALL) {
@@ -242,16 +257,13 @@ class Ant {
         return;
       }
     }
-    // Stuck — stay put (avoid infinite loop around obstacles)
+    // Stuck — stay put
   }
 
   step() {
     if (!this.returning) {
-      // ── Searching ──
-      this._moveRandom();
-      if (this.path.length < MAX_PATH_LEN) {
-        this.path.push({row: this.row, col: this.col});
-      }
+      // ── Searching: random walk biased by pheromones ──
+      this._move(this._searchWeights());
 
       const cell = grid[this.row][this.col];
       if (cell.type === CELL_FOOD && cell.food > 0) {
@@ -259,30 +271,18 @@ class Ant {
         foodCollected++;
         if (cell.food === 0) cell.type = CELL_EMPTY;
         this.returning = true;
-        this.pathIdx = this.path.length - 1;
       }
 
     } else {
-      // ── Returning ── retrace recorded path
-      if (this.pathIdx > 0) {
-        this.pathIdx--;
-        this.row = this.path[this.pathIdx].row;
-        this.col = this.path[this.pathIdx].col;
+      // ── Returning: head toward nest, deposit pheromones ──
+      this._move(this._returnWeights());
+      grid[this.row][this.col].pheromone = Math.min(
+        PHEROMONE_MAX,
+        grid[this.row][this.col].pheromone + PHEROMONE_DEPOSIT
+      );
 
-        // Deposit pheromone proportional to remaining path (stronger near food)
-        const distanceBonus = this.pathIdx / (this.path.length || 1);
-        const deposit = PHEROMONE_DEPOSIT * (1 + distanceBonus);
-        grid[this.row][this.col].pheromone = Math.min(
-          PHEROMONE_MAX,
-          grid[this.row][this.col].pheromone + deposit
-        );
-      }
-
-      // Reached nest?
       if (this.row === nestRow && this.col === nestCol) {
         this.returning = false;
-        this.path = [{row: nestRow, col: nestCol}];
-        this.pathIdx = 0;
       }
     }
   }
@@ -335,7 +335,7 @@ function generateRandom(r, c, antCount) {
       for (let dc = -sz; dc <= sz; dc++) {
         const nr = fr + dr, nc = fc + dc;
         if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type === CELL_EMPTY) {
-          const qty = 15 + Math.floor(Math.random() * 25);
+          const qty = 8 + Math.floor(Math.random() * 12);
           grid[nr][nc] = makeCell(CELL_FOOD, qty);
           foodTotal += qty;
         }
@@ -534,14 +534,8 @@ document.getElementById('btnReset').addEventListener('click', () => {
   btnStart.textContent = '▶ Démarrer';
   cancelAnimationFrame(animId);
   const antCount = parseInt(document.getElementById('antCount').value, 10);
-  spawnAnts(antCount);
-  // Reset pheromones and food
-  for (let i = 0; i < rows; i++)
-    for (let j = 0; j < cols; j++) {
-      grid[i][j].pheromone = 0;
-      if (grid[i][j].type === CELL_FOOD) grid[i][j].food = grid[i][j].food; // keep
-    }
-  stepCount = 0; foodCollected = 0;
+  const size     = parseInt(document.getElementById('gridSize').value, 10);
+  generateRandom(size, size, antCount);
   render();
 });
 
