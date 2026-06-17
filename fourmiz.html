@@ -78,6 +78,7 @@
     input[type=file] { font-size: 0.75rem; color: #aaa; max-width: 160px; }
 
     #canvas-wrapper {
+      position: relative;
       border: 2px solid #333;
       border-radius: 4px;
       box-shadow: 0 0 24px #00000099;
@@ -85,6 +86,59 @@
     }
 
     canvas { display: block; }
+
+    #win-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 20, 10, 0.82);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      border-radius: 2px;
+    }
+    #win-overlay.show { display: flex; }
+    #win-overlay h2 {
+      font-size: 2rem;
+      color: #ffe066;
+      text-shadow: 0 0 20px #ffe06699;
+      letter-spacing: 3px;
+    }
+    #win-overlay p { font-size: 1rem; color: #aaffaa; }
+    #win-overlay button {
+      margin-top: 8px;
+      padding: 8px 20px;
+      background: #2a5a2a;
+      border-color: #4aaa4a;
+      color: #afffaf;
+      font-size: 0.9rem;
+    }
+
+    #scoreboard {
+      background: #1a1a2e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px 18px;
+      max-width: 480px;
+      width: 100%;
+      font-size: 0.8rem;
+    }
+    #scoreboard h3 {
+      color: #f0c040;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      letter-spacing: 1px;
+    }
+    #scoreboard table { width: 100%; border-collapse: collapse; }
+    #scoreboard td, #scoreboard th {
+      padding: 3px 8px;
+      text-align: left;
+      border-bottom: 1px solid #2a2a40;
+    }
+    #scoreboard th { color: #888; font-weight: normal; }
+    #scoreboard tr:first-child td { color: #ffe066; }
+    #scoreboard .empty { color: #555; font-style: italic; }
 
     #legend {
       display: flex;
@@ -139,6 +193,11 @@
 
 <div id="canvas-wrapper">
   <canvas id="canvas"></canvas>
+  <div id="win-overlay">
+    <h2>🏆 VICTOIRE !</h2>
+    <p id="win-msg"></p>
+    <button id="btnWinNew">Nouvelle partie</button>
+  </div>
 </div>
 
 <div id="legend">
@@ -152,6 +211,11 @@
 </div>
 
 <div id="stats"></div>
+
+<div id="scoreboard">
+  <h3>🏅 TABLEAU DES SCORES</h3>
+  <div id="score-list"><span class="empty">Aucun score enregistré</span></div>
+</div>
 
 <script>
 'use strict';
@@ -189,6 +253,7 @@ let ants  = [];
 let rows = 35, cols = 35;
 let nestRow = 0, nestCol = 0;
 let running = false;
+let won = false;
 let stepCount = 0;
 let animId = null;
 let foodTotal = 0;
@@ -346,14 +411,15 @@ function makeCell(type = CELL_EMPTY, food = 0) {
 function generateRandom(r, c, antCount) {
   rows = r; cols = c;
   grid = Array.from({length: rows}, () => Array.from({length: cols}, () => makeCell()));
+  won = false; foodTotal = 0; foodCollected = 0; stepCount = 0;
 
   // Nest: left-center area
   nestRow = Math.floor(rows / 2);
   nestCol = Math.floor(cols / 5);
   grid[nestRow][nestCol] = makeCell(CELL_NEST);
 
-  // Walls (~13%)
-  const wallTarget = Math.floor(rows * cols * 0.13);
+  // Walls: 10% of cells
+  const wallTarget = Math.floor(rows * cols * 0.10);
   let placed = 0, tries = 0;
   while (placed < wallTarget && tries < wallTarget * 10) {
     tries++;
@@ -366,34 +432,33 @@ function generateRandom(r, c, antCount) {
     }
   }
 
-  // Food zones: 3–5 clusters, scattered right of center
-  foodTotal = 0;
-  foodCollected = 0;
-  const zones = 3 + Math.floor(Math.random() * 3);
-  for (let z = 0; z < zones; z++) {
-    let fr, fc, att = 0;
-    do {
-      fr = Math.floor(Math.random() * rows);
-      fc = Math.floor(cols / 2 + Math.random() * (cols / 2));
-      att++;
-    } while (att < 200 && (grid[fr][fc].type !== CELL_EMPTY ||
-             (Math.abs(fr - nestRow) <= 3 && Math.abs(fc - nestCol) <= 3)));
-    // 2×2 to 3×3 cluster
-    const sz = 1 + Math.floor(Math.random() * 2);
-    for (let dr = -sz; dr <= sz; dr++) {
-      for (let dc = -sz; dc <= sz; dc++) {
-        const nr = fr + dr, nc = fc + dc;
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type === CELL_EMPTY) {
-          const qty = 8 + Math.floor(Math.random() * 12);
-          grid[nr][nc] = makeCell(CELL_FOOD, qty);
-          foodTotal += qty;
-        }
-      }
+  // Food: 5% of cells, total quantity = antCount × 2
+  const foodCells = Math.max(1, Math.floor(rows * cols * 0.05));
+  foodTotal = antCount * 2;
+  // Distribute foodTotal across foodCells: base + remainder
+  const baseQty = Math.floor(foodTotal / foodCells);
+  let remainder = foodTotal - baseQty * foodCells;
+
+  placed = 0; tries = 0;
+  while (placed < foodCells && tries < foodCells * 20) {
+    tries++;
+    const fr = Math.floor(Math.random() * rows);
+    const fc = Math.floor(Math.random() * cols);
+    if (grid[fr][fc].type === CELL_EMPTY &&
+        !(Math.abs(fr - nestRow) <= 2 && Math.abs(fc - nestCol) <= 2)) {
+      const qty = baseQty + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      grid[fr][fc] = makeCell(CELL_FOOD, qty);
+      placed++;
     }
   }
+  // Recalculate actual foodTotal in case fewer cells were placed
+  foodTotal = 0;
+  for (let i = 0; i < rows; i++)
+    for (let j = 0; j < cols; j++)
+      if (grid[i][j].type === CELL_FOOD) foodTotal += grid[i][j].food;
 
   spawnAnts(antCount);
-  stepCount = 0;
 }
 
 function spawnAnts(count) {
@@ -427,9 +492,69 @@ function parseDat(text) {
   stepCount = 0;
 }
 
+// ─── Scores ──────────────────────────────────────────────────────────────────
+
+const SCORE_KEY = 'fourmiz_scores';
+
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem(SCORE_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveScore(entry) {
+  const scores = loadScores();
+  scores.push(entry);
+  scores.sort((a, b) => a.steps - b.steps);
+  localStorage.setItem(SCORE_KEY, JSON.stringify(scores.slice(0, 10)));
+}
+
+function renderScoreboard() {
+  const scores = loadScores();
+  const el = document.getElementById('score-list');
+  if (scores.length === 0) {
+    el.innerHTML = '<span class="empty">Aucun score enregistré</span>';
+    return;
+  }
+  const medals = ['🥇','🥈','🥉'];
+  const rows2 = scores.map((s, i) => `
+    <tr>
+      <td>${medals[i] || (i+1)}</td>
+      <td>${s.steps} étapes</td>
+      <td>${s.ants} fourmis</td>
+      <td>${s.size}×${s.size}</td>
+      <td style="color:#666">${s.date}</td>
+    </tr>`).join('');
+  el.innerHTML = `<table>
+    <tr><th></th><th>Étapes</th><th>Fourmis</th><th>Carte</th><th>Date</th></tr>
+    ${rows2}
+  </table>`;
+}
+
+function triggerWin() {
+  running = false;
+  won = true;
+  cancelAnimationFrame(animId);
+
+  const antCount = ants.length;
+  const entry = {
+    steps: stepCount,
+    ants: antCount,
+    size: rows,
+    date: new Date().toLocaleDateString('fr-FR')
+  };
+  saveScore(entry);
+  renderScoreboard();
+
+  document.getElementById('win-msg').textContent =
+    `Toute la nourriture collectée en ${stepCount} étapes avec ${antCount} fourmis !`;
+  document.getElementById('win-overlay').classList.add('show');
+  render();
+}
+
 // ─── Simulation step ─────────────────────────────────────────────────────────
 
 function simStep() {
+  if (won) return;
   for (const ant of ants) ant.step();
 
   // Evaporate pheromones
@@ -447,6 +572,8 @@ function simStep() {
     }
   }
   stepCount++;
+
+  if (foodCollected >= foodTotal && foodTotal > 0) triggerWin();
 }
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
@@ -555,7 +682,7 @@ function render() {
   const returning  = ants.filter(a => a.returning).length;
   const pct = foodTotal > 0 ? Math.round(foodCollected / foodTotal * 100) : 0;
   document.getElementById('stats').textContent =
-    `Étape: ${stepCount} | En recherche: ${searching} | En retour: ${returning} | Nourriture collectée: ${foodCollected}/${foodTotal} (${pct}%)`;
+    `Étape: ${stepCount} | En recherche: ${searching} | En retour: ${returning} | Nourriture: ${foodCollected}/${foodTotal} (${pct}%)`;
 }
 
 // ─── Animation loop ───────────────────────────────────────────────────────────
@@ -573,9 +700,19 @@ function loop() {
 
 const btnStart = document.getElementById('btnStart');
 btnStart.addEventListener('click', () => {
+  if (won) return;
   running = !running;
   btnStart.textContent = running ? '⏸ Pause' : '▶ Démarrer';
   if (running) animId = requestAnimationFrame(loop);
+});
+
+document.getElementById('btnWinNew').addEventListener('click', () => {
+  document.getElementById('win-overlay').classList.remove('show');
+  btnStart.textContent = '▶ Démarrer';
+  const antCount = parseInt(document.getElementById('antCount').value, 10);
+  const size     = parseInt(document.getElementById('gridSize').value, 10);
+  generateRandom(size, size, antCount);
+  render();
 });
 
 document.getElementById('btnStep').addEventListener('click', () => {
@@ -586,6 +723,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   running = false;
   btnStart.textContent = '▶ Démarrer';
   cancelAnimationFrame(animId);
+  document.getElementById('win-overlay').classList.remove('show');
   const antCount = parseInt(document.getElementById('antCount').value, 10);
   const size     = parseInt(document.getElementById('gridSize').value, 10);
   generateRandom(size, size, antCount);
@@ -596,6 +734,7 @@ document.getElementById('btnGenerate').addEventListener('click', () => {
   running = false;
   btnStart.textContent = '▶ Démarrer';
   cancelAnimationFrame(animId);
+  document.getElementById('win-overlay').classList.remove('show');
   const antCount = parseInt(document.getElementById('antCount').value, 10);
   const size     = parseInt(document.getElementById('gridSize').value, 10);
   generateRandom(size, size, antCount);
@@ -624,6 +763,7 @@ window.addEventListener('resize', () => { if (!running) render(); });
 
 generateRandom(35, 35, 40);
 render();
+renderScoreboard();
 </script>
 </body>
 </html>
