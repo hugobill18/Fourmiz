@@ -140,6 +140,56 @@
     #scoreboard tr:first-child td { color: #ffe066; }
     #scoreboard .empty { color: #555; font-style: italic; }
 
+    #algo-panel {
+      background: #141428;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px 16px;
+      max-width: 780px;
+      width: 100%;
+    }
+    #algo-panel h3 {
+      color: #88aaff;
+      font-size: 0.88rem;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    #algo-panel .algo-sub {
+      font-size: 0.72rem;
+      color: #556;
+      margin-bottom: 8px;
+    }
+    #algo-code {
+      width: 100%;
+      min-height: 260px;
+      background: #0d0d1a;
+      color: #c8d8f8;
+      border: 1px solid #2a2a50;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      resize: vertical;
+      white-space: pre;
+      tab-size: 2;
+      spellcheck: false;
+    }
+    #algo-code:focus { outline: 1px solid #4455aa; }
+    .algo-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    #algo-error {
+      font-size: 0.75rem;
+      color: #ff6666;
+      flex: 1;
+      min-width: 0;
+    }
+
     #legend {
       display: flex;
       flex-wrap: wrap;
@@ -212,6 +262,23 @@
 
 <div id="stats"></div>
 
+<div id="algo-panel">
+  <h3>⚙ ALGORITHME DE DÉPLACEMENT</h3>
+  <p class="algo-sub">
+    Calculer et retourner le <strong>poids</strong> d'une direction candidate (≥ 0 ; poids 0 = ignoré).
+    Variables : <code>mode</code> ("cherche"|"retour") · <code>angDiff</code> (0=tout droit…4=demi-tour) ·
+    <code>pheromone</code> (0-255) · <code>antiPhero</code> (0-255) ·
+    <code>distGain</code> (>0=rapproche nid) · <code>hasFood</code> (booléen).
+    Fonctions disponibles : <code>max</code> <code>min</code> <code>abs</code> <code>random</code>.
+  </p>
+  <textarea id="algo-code" spellcheck="false"></textarea>
+  <div class="algo-actions">
+    <button id="btnAlgoApply" class="primary">▶ Appliquer</button>
+    <button id="btnAlgoReset">↺ Réinitialiser</button>
+    <span id="algo-error"></span>
+  </div>
+</div>
+
 <div id="scoreboard">
   <h3>🏅 TABLEAU DES SCORES</h3>
   <div id="score-list"><span class="empty">Aucun score enregistré</span></div>
@@ -230,17 +297,90 @@ const CELL_FOOD  = 3;
 const PHEROMONE_DEPOSIT      = 12.0;
 const PHEROMONE_MAX          = 255.0;
 const PHEROMONE_DECAY        = 0.995;
-const PHEROMONE_WEIGHT       = 5.0;
-const ANTIPHEROMONE_DEPOSIT  = 4.0;   // repellent left by searching ants
+const ANTIPHEROMONE_DEPOSIT  = 4.0;
 const ANTIPHEROMONE_MAX      = 80.0;
-const ANTIPHEROMONE_DECAY    = 0.92;  // evaporates fast
-const ANTIPHEROMONE_WEIGHT   = 10.0;  // penalty for revisited cells
-const BASE_WEIGHT            = 12;
-const NEST_RETURN_BIAS       = 60;
-const INERTIA_FORWARD        = 90;    // same direction as last step
-const INERTIA_DIAG1          = 40;    // ±1 turn
-const INERTIA_SIDE           = 8;     // ±2 turn (wide curve)
+const ANTIPHEROMONE_DECAY    = 0.92;
 const RETRY_MOVES            = 24;
+
+// ─── Algorithme de déplacement (modifiable via l'interface) ──────────────────
+
+const DEFAULT_ALGORITHM =
+`// ════════════════════════════════════════════════════════════════════════════
+// ALGORITHME DE DÉPLACEMENT DES FOURMIS
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Ce bloc est évalué pour CHAQUE direction candidate (parmi les 8 voisins).
+// Retourner un poids ≥ 0.  Poids 0 = direction ignorée.
+// La direction avec le poids le plus élevé a la plus grande probabilité
+// d'être choisie (tirage pondéré).
+//
+// ┌─ Variables disponibles ───────────────────────────────────────────────────
+// │  mode       "cherche" | "retour"
+// │  angDiff    écart angulaire avec le cap courant
+// │               0 = tout droit   1 = ±1 cran   2 = ±2 crans
+// │               3 = ±3 crans     4 = demi-tour
+// │  pheromone  niveau de phéromone sur la case cible   (0 – 255)
+// │  antiPhero  anti-phéromone (case déjà visitée)      (0 – 255)
+// │  distGain   rapprochement du nid depuis la cible
+// │               +1 = se rapproche   0 = même dist   -1 = s'éloigne
+// │  hasFood    true si la case cible contient de la nourriture
+// └───────────────────────────────────────────────────────────────────────────
+// Fonctions : max(a,b)  min(a,b)  abs(x)  random()
+
+// ── Nourriture adjacente → priorité absolue ──────────────────────────────────
+if (hasFood) return 10000;
+
+// ── Inertie directionnelle ───────────────────────────────────────────────────
+let inertie;
+if      (angDiff === 0) inertie = 90;   // tout droit        → très favorisé
+else if (angDiff === 1) inertie = 40;   // légère déviation  → favorisé
+else if (angDiff === 2) inertie = 8;    // large courbe      → neutre
+else                    inertie = 0;    // demi-tour         → non favorisé
+
+// ── Poids selon le mode ──────────────────────────────────────────────────────
+if (mode === "cherche") {
+  // Exploration : inertie + attraction phéromones - répulsion anti-phéromone
+  return max(0, 12 + inertie + pheromone * 5 - antiPhero * 10);
+
+} else {
+  // Retour au nid : priorité aux directions qui se rapprochent du nid
+  return max(1, 12 + distGain * 60 + inertie * 0.5);
+}`;
+
+let antAlgorithm = null;
+
+function compileAlgorithm(code) {
+  try {
+    // Expose safe math helpers (no access to DOM or globals)
+    const fn = new Function(
+      'mode','angDiff','pheromone','antiPhero','distGain','hasFood',
+      'max','min','abs','random',
+      code
+    );
+    // Smoke-test: call with neutral values to catch obvious errors
+    fn('cherche', 0, 0, 0, 0, false,
+       Math.max, Math.min, Math.abs, Math.random);
+    antAlgorithm = fn;
+    return null;
+  } catch(e) {
+    return e.message;
+  }
+}
+
+function applyAlgorithm() {
+  const code  = document.getElementById('algo-code').value;
+  const error = compileAlgorithm(code);
+  const errEl = document.getElementById('algo-error');
+  if (error) {
+    errEl.textContent = '⚠ ' + error;
+  } else {
+    errEl.textContent = '✓ Algorithme appliqué';
+    setTimeout(() => { errEl.textContent = ''; }, 2000);
+  }
+}
+
+// Compile default at startup
+compileAlgorithm(DEFAULT_ALGORITHM);
 
 // 8-directional deltas: NW N NE E SE S SW W
 const DIR_DR = [-1,-1,-1, 0, 1, 1, 1, 0];
@@ -290,49 +430,37 @@ class Ant {
     return d > 4 ? 8 - d : d;
   }
 
-  // Weights for searching: inertia + pheromone attraction - anti-pheromone penalty
-  _searchWeights() {
+  // Call the user-defined algorithm for one candidate direction
+  _weight(mode, d, nr, nc) {
+    const cell     = grid[nr][nc];
+    const angDiff  = Ant._angDiff(d, this.dir);
+    const curDist  = Math.max(Math.abs(this.row - nestRow), Math.abs(this.col - nestCol));
+    const newDist  = Math.max(Math.abs(nr  - nestRow), Math.abs(nc  - nestCol));
+    const distGain = curDist - newDist;
+    const hasFood  = cell.type === CELL_FOOD && cell.food > 0;
+    try {
+      const w = antAlgorithm(
+        mode, angDiff, cell.pheromone, cell.pheromoneNeg, distGain, hasFood,
+        Math.max, Math.min, Math.abs, Math.random
+      );
+      return isFinite(w) && w >= 0 ? w : 0;
+    } catch { return 12; } // fallback on runtime error
+  }
+
+  _buildWeights(mode) {
     const w = new Array(8);
     for (let d = 0; d < 8; d++) {
       const nr = this.row + DIR_DR[d];
       const nc = this.col + DIR_DC[d];
-      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || grid[nr][nc].type === CELL_WALL) {
-        w[d] = 0;
-        continue;
-      }
-      const diff = Ant._angDiff(d, this.dir);
-      const inertia = diff === 0 ? INERTIA_FORWARD
-                    : diff === 1 ? INERTIA_DIAG1
-                    : diff === 2 ? INERTIA_SIDE
-                    : 0; // backward half: no bonus
-      const phero    =  grid[nr][nc].pheromone    * PHEROMONE_WEIGHT;
-      const antiPhero = grid[nr][nc].pheromoneNeg * ANTIPHEROMONE_WEIGHT;
-      w[d] = Math.max(0, BASE_WEIGHT + inertia + phero - antiPhero);
+      w[d] = (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CELL_WALL)
+        ? this._weight(mode, d, nr, nc)
+        : 0;
     }
     return w;
   }
 
-  // Weights for returning: Chebyshev distance gain toward nest + inertia
-  _returnWeights() {
-    const curDist = Math.max(Math.abs(this.row - nestRow), Math.abs(this.col - nestCol));
-    const w = new Array(8);
-    for (let d = 0; d < 8; d++) {
-      const nr = this.row + DIR_DR[d];
-      const nc = this.col + DIR_DC[d];
-      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || grid[nr][nc].type === CELL_WALL) {
-        w[d] = 0;
-        continue;
-      }
-      const newDist = Math.max(Math.abs(nr - nestRow), Math.abs(nc - nestCol));
-      const gain = curDist - newDist;
-      const diff = Ant._angDiff(d, this.dir);
-      const inertia = diff <= 1 ? INERTIA_DIAG1 : 0;
-      w[d] = Math.max(1, BASE_WEIGHT + gain * NEST_RETURN_BIAS + inertia);
-    }
-    return w;
-  }
-
-  _move(weights) {
+  _move(mode) {
+    const weights = this._buildWeights(mode);
     for (let attempt = 0; attempt < RETRY_MOVES; attempt++) {
       const d = weightedRandom(weights);
       if (weights[d] === 0) continue;
@@ -341,41 +469,19 @@ class Ant {
       if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CELL_WALL) {
         this.row = nr;
         this.col = nc;
-        this.dir = d; // update heading
+        this.dir = d;
         return;
       }
     }
-    // Stuck — reverse direction to escape corner
-    this.dir = (this.dir + 4) % 8;
-  }
-
-  // Returns direction index of adjacent food cell, or -1
-  _adjacentFood() {
-    for (let d = 0; d < 8; d++) {
-      const nr = this.row + DIR_DR[d];
-      const nc = this.col + DIR_DC[d];
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
-          grid[nr][nc].type === CELL_FOOD && grid[nr][nc].food > 0) return d;
-    }
-    return -1;
+    this.dir = (this.dir + 4) % 8; // coincé → demi-tour
   }
 
   step() {
     if (!this.returning) {
-      // ── Searching ──
-      // Deposit anti-pheromone on current cell to discourage revisits
+      // ── Recherche ──
       const cur = grid[this.row][this.col];
       cur.pheromoneNeg = Math.min(ANTIPHEROMONE_MAX, cur.pheromoneNeg + ANTIPHEROMONE_DEPOSIT);
-
-      // Sniff adjacent cells for food before moving randomly
-      const foodDir = this._adjacentFood();
-      if (foodDir >= 0) {
-        this.row += DIR_DR[foodDir];
-        this.col += DIR_DC[foodDir];
-        this.dir  = foodDir;
-      } else {
-        this._move(this._searchWeights());
-      }
+      this._move("cherche");
 
       const cell = grid[this.row][this.col];
       if (cell.type === CELL_FOOD && cell.food > 0) {
@@ -383,20 +489,19 @@ class Ant {
         foodCollected++;
         if (cell.food === 0) cell.type = CELL_EMPTY;
         this.returning = true;
-        this.dir = (this.dir + 4) % 8; // turn around
+        this.dir = (this.dir + 4) % 8;
       }
 
     } else {
-      // ── Returning: head toward nest, deposit pheromones ──
-      this._move(this._returnWeights());
+      // ── Retour au nid ──
+      this._move("retour");
       grid[this.row][this.col].pheromone = Math.min(
         PHEROMONE_MAX,
         grid[this.row][this.col].pheromone + PHEROMONE_DEPOSIT
       );
-
       if (this.row === nestRow && this.col === nestCol) {
         this.returning = false;
-        this.dir = Math.floor(Math.random() * 8); // new search direction
+        this.dir = Math.floor(Math.random() * 8);
       }
     }
   }
@@ -759,8 +864,18 @@ document.getElementById('fileInput').addEventListener('change', e => {
 
 window.addEventListener('resize', () => { if (!running) render(); });
 
+document.getElementById('btnAlgoApply').addEventListener('click', applyAlgorithm);
+
+document.getElementById('btnAlgoReset').addEventListener('click', () => {
+  document.getElementById('algo-code').value = DEFAULT_ALGORITHM;
+  compileAlgorithm(DEFAULT_ALGORITHM);
+  document.getElementById('algo-error').textContent = '✓ Algorithme réinitialisé';
+  setTimeout(() => { document.getElementById('algo-error').textContent = ''; }, 2000);
+});
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+document.getElementById('algo-code').value = DEFAULT_ALGORITHM;
 generateRandom(35, 35, 40);
 render();
 renderScoreboard();
