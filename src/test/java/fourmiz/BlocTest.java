@@ -110,14 +110,13 @@ public class BlocTest {
     }
 
     @Test
-    public void mvtfourmi_false_underflow_bug() {
-        // Known bug: calling mvtfourmi(false) when fourmis == 0 produces -1.
-        // This test documents the current (incorrect) behaviour.
-        // A fix should either throw an IllegalStateException or clamp to 0.
+    public void mvtfourmi_false_atZero_clampsToZero() {
+        // Calling mvtfourmi(false) when fourmis == 0 must not go negative:
+        // the counter is clamped at 0.
         Vide v = new Vide();
         assertEquals(0, v.fourmis);
         v.mvtfourmi(false);
-        assertEquals("Bug: ant count went negative", -1, v.fourmis);
+        assertEquals("Ant count must never go negative", 0, v.fourmis);
     }
 
     @Test

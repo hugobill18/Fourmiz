@@ -1,6 +1,5 @@
 package fourmiz;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -119,16 +118,16 @@ public class MondeTest {
         }
     }
 
-    // ── Known bug: infinite loop when ant is surrounded by obstacles ─────────
+    // ── Ant surrounded by obstacles: must not infinite-loop ──────────────────
 
-    @Ignore("Known bug: step() infinite-loops when an ant has no valid neighbour. "
-          + "Fix by adding a maximum-retry guard in Monde.step(). "
-          + "Remove @Ignore once the bug is resolved.")
-    @Test
+    @Test(timeout = 5000)
     public void step_surroundedByObstacles_doesNotInfiniteLoop() {
         // terrain_surrounded.dat: 3×3 grid, single ant at (1,1) = Fourmiliere,
-        // all 8 neighbours are Obstacles → the retry loop in step() never exits.
+        // all 8 neighbours are Obstacles → the retry guard makes the ant stay put.
         Monde m = new Monde("src/test/resources/terrain_surrounded.dat");
-        m.step(); // would loop forever without a fix
+        m.step();
+        assertEquals("Blocked ant should stay on the Fourmiliere", 1, m.fourmi[0].getx());
+        assertEquals("Blocked ant should stay on the Fourmiliere", 1, m.fourmi[0].gety());
+        assertEquals("Tile ant count should be restored", 1, m.terrain[1][1].fourmis);
     }
 }
