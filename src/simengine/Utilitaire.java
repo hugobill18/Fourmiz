@@ -29,6 +29,8 @@ public class Utilitaire
 	{
 		int somme = 0;
 		for (int i=0; i<poids.length; i++) somme += poids[i];
+		if (somme <= 0)
+			throw new IllegalArgumentException("La somme des poids doit être strictement positive (reçu : " + somme + ")");
 		int instance = ranGen.nextInt(somme);
 		int cumul = 0;
 		int valeur = 0;
