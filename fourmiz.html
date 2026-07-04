@@ -61,8 +61,11 @@
       transition: background 0.15s;
     }
     button:hover { background: #3a3a62; }
+    button:active { transform: translateY(1px); }
+    button:focus-visible { outline: 2px solid #f0c040; outline-offset: 1px; }
+    button:disabled { opacity: 0.45; cursor: default; transform: none; }
     button.primary { background: #3a5a3a; border-color: #4a8a4a; color: #afa; }
-    button.primary:hover { background: #4a7a4a; }
+    button.primary:hover:not(:disabled) { background: #4a7a4a; }
 
     input[type=range] { width: 90px; accent-color: #f0c040; cursor: pointer; }
     input[type=number] {
@@ -76,6 +79,7 @@
       font-size: 0.85rem;
     }
     input[type=file] { font-size: 0.75rem; color: #aaa; max-width: 160px; }
+    #file-error { font-size: 0.72rem; color: #ff6666; }
 
     #canvas-wrapper {
       position: relative;
@@ -220,24 +224,25 @@
     <button id="btnReset">↺ Reset</button>
   </div>
   <div class="ctrl-group">
-    <label>Vitesse</label>
+    <label for="speed">Vitesse</label>
     <input type="range" id="speed" min="1" max="20" value="5">
     <span id="speedVal" style="min-width:20px">5</span>
   </div>
   <div class="ctrl-group">
-    <label>Fourmis</label>
+    <label for="antCount">Fourmis</label>
     <input type="number" id="antCount" min="1" max="300" value="40">
   </div>
   <div class="ctrl-group">
-    <label>Taille</label>
+    <label for="gridSize">Taille</label>
     <input type="number" id="gridSize" min="10" max="80" value="35">
   </div>
   <div class="ctrl-group">
     <button id="btnGenerate">🗺 Nouvelle carte</button>
   </div>
   <div class="ctrl-group">
-    <label>Charger .dat</label>
+    <label for="fileInput">Charger .dat</label>
     <input type="file" id="fileInput" accept=".dat">
+    <span id="file-error"></span>
   </div>
 </div>
 
@@ -300,7 +305,6 @@ const PHEROMONE_DECAY        = 0.995;
 const ANTIPHEROMONE_DEPOSIT  = 4.0;
 const ANTIPHEROMONE_MAX      = 80.0;
 const ANTIPHEROMONE_DECAY    = 0.92;
-const RETRY_MOVES            = 24;
 
 // ─── Algorithme de déplacement (modifiable via l'interface) ──────────────────
 
@@ -367,16 +371,18 @@ function compileAlgorithm(code) {
   }
 }
 
+function algoFeedback(message, isError) {
+  const errEl = document.getElementById('algo-error');
+  errEl.textContent = message;
+  errEl.style.color = isError ? '#ff6666' : '#66cc88';
+  if (!isError) setTimeout(() => { errEl.textContent = ''; }, 2000);
+}
+
 function applyAlgorithm() {
   const code  = document.getElementById('algo-code').value;
   const error = compileAlgorithm(code);
-  const errEl = document.getElementById('algo-error');
-  if (error) {
-    errEl.textContent = '⚠ ' + error;
-  } else {
-    errEl.textContent = '✓ Algorithme appliqué';
-    setTimeout(() => { errEl.textContent = ''; }, 2000);
-  }
+  if (error) algoFeedback('⚠ ' + error, true);
+  else algoFeedback('✓ Algorithme appliqué', false);
 }
 
 // Compile default at startup
@@ -460,20 +466,19 @@ class Ant {
   }
 
   _move(mode) {
+    // Les directions invalides (hors grille, mur) ont déjà un poids nul,
+    // donc un seul tirage pondéré suffit dès qu'au moins un poids est > 0.
     const weights = this._buildWeights(mode);
-    for (let attempt = 0; attempt < RETRY_MOVES; attempt++) {
-      const d = weightedRandom(weights);
-      if (weights[d] === 0) continue;
-      const nr = this.row + DIR_DR[d];
-      const nc = this.col + DIR_DC[d];
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CELL_WALL) {
-        this.row = nr;
-        this.col = nc;
-        this.dir = d;
-        return;
-      }
+    let sum = 0;
+    for (let d = 0; d < 8; d++) sum += weights[d];
+    if (sum <= 0) {
+      this.dir = (this.dir + 4) % 8; // coincé → demi-tour
+      return;
     }
-    this.dir = (this.dir + 4) % 8; // coincé → demi-tour
+    const d = weightedRandom(weights);
+    this.row += DIR_DR[d];
+    this.col += DIR_DC[d];
+    this.dir = d;
   }
 
   step() {
@@ -573,19 +578,27 @@ function spawnAnts(count) {
 
 // ─── .dat file parsing ───────────────────────────────────────────────────────
 
+// Charge un terrain .dat. Lève une Error avec un message lisible si le fichier
+// est invalide, sans toucher à l'état courant de la simulation dans ce cas.
 function parseDat(text) {
   const nums = text.trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
-  let idx = 0;
-  const r = nums[idx++];
-  const c = nums[idx++];
-  const antCount = nums[idx++];
+  const r = nums[0], c = nums[1], antCount = nums[2];
+  if (!Number.isInteger(r) || !Number.isInteger(c) || r <= 0 || c <= 0)
+    throw new Error('dimensions de grille invalides');
+  if (!Number.isInteger(antCount) || antCount <= 0)
+    throw new Error('nombre de fourmis invalide');
+  if (nums.length < 3 + r * c)
+    throw new Error(`grille incomplète (${nums.length - 3} valeurs pour ${r}×${c} attendues)`);
+
   rows = r; cols = c;
   grid = [];
   foodTotal = 0; foodCollected = 0;
+  nestRow = 0; nestCol = 0; // par défaut si aucune fourmilière (-1) dans le fichier
+  let idx = 3;
   for (let i = 0; i < rows; i++) {
     grid[i] = [];
     for (let j = 0; j < cols; j++) {
-      const v = nums[idx++] ?? 0;
+      const v = nums[idx++];
       let type = CELL_EMPTY, food = 0;
       if (v === -1) { type = CELL_NEST; nestRow = i; nestCol = j; }
       else if (v === -2) { type = CELL_WALL; }
@@ -595,6 +608,7 @@ function parseDat(text) {
   }
   spawnAnts(antCount);
   stepCount = 0;
+  won = false;
 }
 
 // ─── Scores ──────────────────────────────────────────────────────────────────
@@ -639,6 +653,8 @@ function triggerWin() {
   running = false;
   won = true;
   cancelAnimationFrame(animId);
+  btnStart.textContent = '▶ Démarrer';
+  btnStart.disabled = true;
 
   const antCount = ants.length;
   const entry = {
@@ -715,12 +731,8 @@ function render() {
         case CELL_FOOD:
           r = 26; g = 138; b = 26; break;
         default: {
-          // Sand base, blended with pheromone (red-orange)
+          // Sol sable #c8b064 → pic de phéromone #cc2200 (interpolation linéaire)
           const t = Math.min(cell.pheromone / PHEROMONE_MAX, 1);
-          r = Math.round(200 + (204 - 200) * t - t * 40);  // 200 → 180ish
-          g = Math.round(176 - 140 * t);                    // 176 → 36
-          b = Math.round(100 - 100 * t);                    // 100 → 0
-          // Simplified: sand #c8b064, pheromone peak #cc2200
           r = Math.round(200 * (1-t) + 204 * t);
           g = Math.round(176 * (1-t) + 34 * t);
           b = Math.round(100 * (1-t) + 0  * t);
@@ -783,8 +795,9 @@ function render() {
   }
 
   // Stats line
-  const searching = ants.filter(a => !a.returning).length;
-  const returning  = ants.filter(a => a.returning).length;
+  let returning = 0;
+  for (const a of ants) if (a.returning) returning++;
+  const searching = ants.length - returning;
   const pct = foodTotal > 0 ? Math.round(foodCollected / foodTotal * 100) : 0;
   document.getElementById('stats').textContent =
     `Étape: ${stepCount} | En recherche: ${searching} | En retour: ${returning} | Nourriture: ${foodCollected}/${foodTotal} (${pct}%)`;
@@ -804,6 +817,25 @@ function loop() {
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
 const btnStart = document.getElementById('btnStart');
+
+// Arrête l'évolution automatique et masque l'écran de victoire
+function stopSimulation() {
+  running = false;
+  btnStart.textContent = '▶ Démarrer';
+  btnStart.disabled = false;
+  cancelAnimationFrame(animId);
+  document.getElementById('win-overlay').classList.remove('show');
+}
+
+// Régénère une carte aléatoire à partir des réglages courants
+function newGame() {
+  stopSimulation();
+  const antCount = parseInt(document.getElementById('antCount').value, 10);
+  const size     = parseInt(document.getElementById('gridSize').value, 10);
+  generateRandom(size, size, antCount);
+  render();
+}
+
 btnStart.addEventListener('click', () => {
   if (won) return;
   running = !running;
@@ -811,39 +843,12 @@ btnStart.addEventListener('click', () => {
   if (running) animId = requestAnimationFrame(loop);
 });
 
-document.getElementById('btnWinNew').addEventListener('click', () => {
-  document.getElementById('win-overlay').classList.remove('show');
-  btnStart.textContent = '▶ Démarrer';
-  const antCount = parseInt(document.getElementById('antCount').value, 10);
-  const size     = parseInt(document.getElementById('gridSize').value, 10);
-  generateRandom(size, size, antCount);
-  render();
-});
+document.getElementById('btnWinNew').addEventListener('click', newGame);
+document.getElementById('btnReset').addEventListener('click', newGame);
+document.getElementById('btnGenerate').addEventListener('click', newGame);
 
 document.getElementById('btnStep').addEventListener('click', () => {
-  if (!running) { simStep(); render(); }
-});
-
-document.getElementById('btnReset').addEventListener('click', () => {
-  running = false;
-  btnStart.textContent = '▶ Démarrer';
-  cancelAnimationFrame(animId);
-  document.getElementById('win-overlay').classList.remove('show');
-  const antCount = parseInt(document.getElementById('antCount').value, 10);
-  const size     = parseInt(document.getElementById('gridSize').value, 10);
-  generateRandom(size, size, antCount);
-  render();
-});
-
-document.getElementById('btnGenerate').addEventListener('click', () => {
-  running = false;
-  btnStart.textContent = '▶ Démarrer';
-  cancelAnimationFrame(animId);
-  document.getElementById('win-overlay').classList.remove('show');
-  const antCount = parseInt(document.getElementById('antCount').value, 10);
-  const size     = parseInt(document.getElementById('gridSize').value, 10);
-  generateRandom(size, size, antCount);
-  render();
+  if (!running && !won) { simStep(); render(); }
 });
 
 document.getElementById('speed').addEventListener('input', function() {
@@ -853,11 +858,19 @@ document.getElementById('speed').addEventListener('input', function() {
 document.getElementById('fileInput').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
-  running = false;
-  btnStart.textContent = '▶ Démarrer';
-  cancelAnimationFrame(animId);
+  const errEl = document.getElementById('file-error');
+  errEl.textContent = '';
   const reader = new FileReader();
-  reader.onload = ev => { parseDat(ev.target.result); render(); };
+  reader.onload = ev => {
+    try {
+      parseDat(ev.target.result);
+      stopSimulation();
+      render();
+    } catch (err) {
+      errEl.textContent = '⚠ ' + err.message;
+      setTimeout(() => { errEl.textContent = ''; }, 4000);
+    }
+  };
   reader.readAsText(file);
   e.target.value = '';
 });
@@ -869,8 +882,7 @@ document.getElementById('btnAlgoApply').addEventListener('click', applyAlgorithm
 document.getElementById('btnAlgoReset').addEventListener('click', () => {
   document.getElementById('algo-code').value = DEFAULT_ALGORITHM;
   compileAlgorithm(DEFAULT_ALGORITHM);
-  document.getElementById('algo-error').textContent = '✓ Algorithme réinitialisé';
-  setTimeout(() => { document.getElementById('algo-error').textContent = ''; }, 2000);
+  algoFeedback('✓ Algorithme réinitialisé', false);
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

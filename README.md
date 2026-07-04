@@ -4,9 +4,14 @@ Simulation de fourmis en Java/Swing : des fourmis partent d'une fourmilière et 
 déplacent aléatoirement sur un terrain composé de cases vides, d'obstacles et de
 nourriture.
 
-Les sources Java sont organisées dans `src/fourmiz` et `src/simengine`.
+Le projet existe en deux versions :
 
-## Compilation et exécution
+- **Java/Swing** : sources dans `src/fourmiz` et `src/simengine` (voir ci-dessous) ;
+- **Web** : `fourmiz.html`, une page autonome (HTML/Canvas, sans dépendance) à ouvrir
+  directement dans un navigateur — avec phéromones, génération de cartes aléatoires,
+  éditeur d'algorithme de déplacement et tableau des scores.
+
+## Compilation et exécution (version Java)
 
 ```bash
 javac -d out src/fourmiz/*.java src/simengine/*.java
