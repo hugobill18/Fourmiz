@@ -4,289 +4,581 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fourmiz — Simulation de Colonie de Fourmis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg:        #0b0a09;
+      --panel:     #13110f;
+      --panel-2:   #1a1714;
+      --line:      #2a2521;
+      --line-hot:  #3d342d;
+      --text:      #f1ece4;
+      --muted:     #8f867b;
+      --dim:       #5a524a;
+      --accent:    #ff3b1f;   /* rouge braise : phéromones, CTA */
+      --amber:     #ffb400;   /* fourmis au retour */
+      --lime:      #c6ff3d;   /* nourriture */
+      --ground:    #15120f;
+      --wall:      #2e2925;
+
+      --f-display: 'Anton', 'Impact', 'Haettenschweiler', 'Arial Black', sans-serif;
+      --f-ui:      'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --f-mono:    'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { background: var(--bg); }
     body {
-      background: #12121f;
-      color: #e0e0e0;
-      font-family: 'Courier New', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      background:
+        radial-gradient(1200px 600px at 85% -10%, rgba(255, 59, 31, 0.10), transparent 60%),
+        radial-gradient(900px 500px at -10% 110%, rgba(255, 180, 0, 0.06), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--f-ui);
       min-height: 100vh;
-      padding: 12px 8px;
-      gap: 10px;
+      padding: 0 16px 48px;
+      overflow-x: hidden;
     }
 
-    h1 {
-      font-size: 1.5rem;
-      color: #f0c040;
-      letter-spacing: 2px;
-      text-shadow: 0 0 12px #f0c04066;
+    /* Grain « affiche de concert » */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.07;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     }
 
-    #controls {
+    .wrap { max-width: 1240px; margin: 0 auto; }
+
+    /* ─── En-tête ─────────────────────────────────────────── */
+    .top {
       display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
       flex-wrap: wrap;
-      gap: 8px;
+      padding: 36px 0 24px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 24px;
+    }
+    .brand { display: flex; flex-direction: column; gap: 10px; }
+    .kicker {
+      font-family: var(--f-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h1 {
+      font-family: var(--f-display);
+      font-weight: 400;
+      font-size: clamp(3.4rem, 11vw, 7.5rem);
+      line-height: 0.82;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      color: var(--text);
+      position: relative;
+    }
+    h1 .z {
+      color: var(--accent);
+      display: inline-block;
+      transform: skewX(-8deg);
+      text-shadow: 0 0 40px rgba(255, 59, 31, 0.45);
+    }
+    .tagline {
+      font-size: 0.98rem;
+      color: var(--muted);
+      max-width: 44ch;
+    }
+    .tagline b { color: var(--text); font-weight: 500; }
+
+    .status {
+      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      background: #1e1e32;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 10px 14px;
-      max-width: 900px;
-      width: 100%;
+      gap: 10px;
+      font-family: var(--f-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid var(--line-hot);
+      padding: 8px 14px;
+      border-radius: 999px;
+    }
+    .status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--dim);
+    }
+    body.is-running .status { color: var(--text); border-color: rgba(255, 59, 31, 0.5); }
+    body.is-running .status .dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 0 rgba(255, 59, 31, 0.7);
+      animation: pulse 1.4s infinite;
+    }
+    body.is-won .status { color: var(--lime); border-color: rgba(198, 255, 61, 0.45); }
+    body.is-won .status .dot { background: var(--lime); }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 59, 31, 0.7); }
+      70%  { box-shadow: 0 0 0 10px rgba(255, 59, 31, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 59, 31, 0); }
     }
 
-    .ctrl-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
+    /* ─── Mise en page principale ─────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 24px;
+      align-items: start;
     }
+    .stage { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 
-    .ctrl-group label { color: #aaa; white-space: nowrap; }
-
-    button {
-      background: #2a2a48;
-      color: #ddd;
-      border: 1px solid #444;
-      padding: 5px 12px;
-      cursor: pointer;
-      border-radius: 4px;
-      font-family: inherit;
-      font-size: 0.85rem;
-      transition: background 0.15s;
+    /* HUD */
+    #stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      background: var(--panel);
     }
-    button:hover { background: #3a3a62; }
-    button:active { transform: translateY(1px); }
-    button:focus-visible { outline: 2px solid #f0c040; outline-offset: 1px; }
-    button:disabled { opacity: 0.45; cursor: default; transform: none; }
-    button.primary { background: #3a5a3a; border-color: #4a8a4a; color: #afa; }
-    button.primary:hover:not(:disabled) { background: #4a7a4a; }
-
-    input[type=range] { width: 90px; accent-color: #f0c040; cursor: pointer; }
-    input[type=number] {
-      width: 55px;
-      background: #1a1a30;
-      color: #eee;
-      border: 1px solid #444;
-      border-radius: 3px;
-      padding: 3px 5px;
-      font-family: inherit;
-      font-size: 0.85rem;
+    .stat { padding: 12px 16px; border-right: 1px solid var(--line); min-width: 0; }
+    .stat:last-child { border-right: 0; }
+    .stat .k {
+      font-family: var(--f-mono);
+      font-size: 0.64rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
     }
-    input[type=file] { font-size: 0.75rem; color: #aaa; max-width: 160px; }
-    #file-error { font-size: 0.72rem; color: #ff6666; }
+    .stat .v {
+      font-family: var(--f-display);
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .stat .v small { font-family: var(--f-mono); font-size: 0.7rem; color: var(--muted); margin-left: 4px; }
+    .stat.hot .v { color: var(--amber); }
+    .stat.food .v { color: var(--lime); }
+    .bar { height: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0; background: var(--lime); transition: width 0.2s linear; }
 
     #canvas-wrapper {
       position: relative;
-      border: 2px solid #333;
-      border-radius: 4px;
-      box-shadow: 0 0 24px #00000099;
-      background: #000;
+      align-self: center;
+      max-width: 100%;
+      border: 1px solid var(--line-hot);
+      background: var(--ground);
+      box-shadow:
+        0 40px 80px -30px rgba(0, 0, 0, 0.9),
+        0 0 0 6px var(--panel),
+        0 0 0 7px var(--line);
     }
-
-    canvas { display: block; }
+    #canvas-wrapper::before,
+    #canvas-wrapper::after {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      border: 2px solid var(--accent);
+      pointer-events: none;
+    }
+    #canvas-wrapper::before { top: -12px; left: -12px; border-right: 0; border-bottom: 0; }
+    #canvas-wrapper::after  { bottom: -12px; right: -12px; border-left: 0; border-top: 0; }
+    canvas { display: block; max-width: 100%; }
 
     #win-overlay {
       display: none;
       position: absolute;
       inset: 0;
-      background: rgba(10, 20, 10, 0.82);
+      background: rgba(11, 10, 9, 0.78);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      gap: 12px;
-      border-radius: 2px;
+      gap: 14px;
+      padding: 24px;
+      text-align: center;
     }
-    #win-overlay.show { display: flex; }
+    #win-overlay.show { display: flex; animation: slam 0.45s cubic-bezier(.2, 1.4, .4, 1); }
+    @keyframes slam {
+      from { opacity: 0; transform: scale(1.08); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    #win-overlay .kicker { color: var(--lime); }
     #win-overlay h2 {
-      font-size: 2rem;
-      color: #ffe066;
-      text-shadow: 0 0 20px #ffe06699;
-      letter-spacing: 3px;
+      font-family: var(--f-display);
+      font-weight: 400;
+      font-size: clamp(2.6rem, 9vw, 5.5rem);
+      line-height: 0.9;
+      text-transform: uppercase;
+      color: var(--text);
+      text-shadow: 0 0 50px rgba(198, 255, 61, 0.35);
     }
-    #win-overlay p { font-size: 1rem; color: #aaffaa; }
-    #win-overlay button {
-      margin-top: 8px;
-      padding: 8px 20px;
-      background: #2a5a2a;
-      border-color: #4aaa4a;
-      color: #afffaf;
-      font-size: 0.9rem;
-    }
-
-    #scoreboard {
-      background: #1a1a2e;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 10px 18px;
-      max-width: 480px;
-      width: 100%;
-      font-size: 0.8rem;
-    }
-    #scoreboard h3 {
-      color: #f0c040;
-      margin-bottom: 8px;
-      font-size: 0.9rem;
-      letter-spacing: 1px;
-    }
-    #scoreboard table { width: 100%; border-collapse: collapse; }
-    #scoreboard td, #scoreboard th {
-      padding: 3px 8px;
-      text-align: left;
-      border-bottom: 1px solid #2a2a40;
-    }
-    #scoreboard th { color: #888; font-weight: normal; }
-    #scoreboard tr:first-child td { color: #ffe066; }
-    #scoreboard .empty { color: #555; font-style: italic; }
-
-    #algo-panel {
-      background: #141428;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 12px 16px;
-      max-width: 780px;
-      width: 100%;
-    }
-    #algo-panel h3 {
-      color: #88aaff;
-      font-size: 0.88rem;
-      letter-spacing: 1px;
-      margin-bottom: 8px;
-    }
-    #algo-panel .algo-sub {
-      font-size: 0.72rem;
-      color: #556;
-      margin-bottom: 8px;
-    }
-    #algo-code {
-      width: 100%;
-      min-height: 260px;
-      background: #0d0d1a;
-      color: #c8d8f8;
-      border: 1px solid #2a2a50;
-      border-radius: 4px;
-      padding: 10px 12px;
-      font-family: 'Courier New', monospace;
-      font-size: 0.78rem;
-      line-height: 1.55;
-      resize: vertical;
-      white-space: pre;
-      tab-size: 2;
-      spellcheck: false;
-    }
-    #algo-code:focus { outline: 1px solid #4455aa; }
-    .algo-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-    #algo-error {
-      font-size: 0.75rem;
-      color: #ff6666;
-      flex: 1;
-      min-width: 0;
-    }
+    #win-overlay p { font-size: 1rem; color: var(--muted); max-width: 36ch; }
+    #win-overlay p b { color: var(--text); }
 
     #legend {
       display: flex;
       flex-wrap: wrap;
-      gap: 14px;
+      gap: 8px 18px;
       font-size: 0.78rem;
-      color: #bbb;
-      justify-content: center;
+      color: var(--muted);
     }
-    .leg { display: flex; align-items: center; gap: 5px; }
-    .swatch { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #555; flex-shrink: 0; }
+    .leg { display: flex; align-items: center; gap: 7px; }
+    .swatch { width: 10px; height: 10px; flex-shrink: 0; }
+    .swatch.round { border-radius: 50%; }
 
-    #stats {
+    /* ─── Panneaux ────────────────────────────────────────── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 20px;
+    }
+    .panel-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: var(--f-display);
+      font-weight: 400;
+      font-size: 1.35rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .panel-title .num {
+      font-family: var(--f-mono);
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    #controls { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 16px; }
+    .ctrl-row { display: flex; gap: 8px; }
+    .ctrl-row > * { flex: 1; }
+    .field { display: flex; flex-direction: column; gap: 8px; }
+    .field-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .field label, .field .label {
+      font-family: var(--f-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    #speedVal { font-family: var(--f-display); font-size: 1.1rem; color: var(--text); }
+    .sep { height: 1px; background: var(--line); }
+
+    button, .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line-hot);
+      padding: 10px 14px;
+      cursor: pointer;
+      border-radius: 2px;
+      font-family: var(--f-ui);
+      font-weight: 700;
       font-size: 0.78rem;
-      color: #888;
-      text-align: center;
-      min-height: 1.2em;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: transform 0.12s, box-shadow 0.12s, background 0.12s, border-color 0.12s, color 0.12s;
+      user-select: none;
+    }
+    button:hover, .btn:hover { border-color: var(--text); }
+    button:active, .btn:active { transform: translate(1px, 1px); }
+    button:focus-visible, .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:disabled { opacity: 0.35; cursor: default; transform: none; box-shadow: none; }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0b0a09;
+      box-shadow: 4px 4px 0 var(--text);
+    }
+    button.primary:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--text); }
+    button.primary:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--text); }
+    #btnStart { padding: 16px; font-size: 0.95rem; width: 100%; }
+    body.is-running #btnStart { background: var(--text); border-color: var(--text); box-shadow: 4px 4px 0 var(--accent); }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: var(--line-hot);
+      cursor: pointer;
+      margin: 8px 0;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      background: var(--accent);
+      border: 3px solid var(--bg);
+      box-shadow: 0 0 0 1px var(--accent);
+      border-radius: 50%;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 12px; height: 12px;
+      background: var(--accent);
+      border: 3px solid var(--bg);
+      box-shadow: 0 0 0 1px var(--accent);
+      border-radius: 50%;
+    }
+    input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+    input[type=number] {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--line-hot);
+      border-radius: 2px;
+      padding: 9px 10px;
+      font-family: var(--f-mono);
+      font-size: 0.95rem;
+    }
+    input[type=number]:focus { outline: none; border-color: var(--accent); }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .btn-file { width: 100%; }
+    #file-error { font-size: 0.75rem; color: var(--accent); min-height: 1em; }
+
+    /* ─── Bas de page : algo + scores ─────────────────────── */
+    .lower {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 24px;
+      margin-top: 32px;
+      align-items: start;
+    }
+
+    #algo-panel .algo-sub {
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    #algo-panel code {
+      font-family: var(--f-mono);
+      font-size: 0.78em;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 1px 5px;
+    }
+    #algo-code {
+      width: 100%;
+      min-height: 300px;
+      background: var(--bg);
+      color: #e8dccb;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: 0;
+      padding: 14px 16px;
+      font-family: var(--f-mono);
+      font-size: 0.78rem;
+      line-height: 1.6;
+      resize: vertical;
+      white-space: pre;
+      tab-size: 2;
+    }
+    #algo-code:focus { outline: none; border-color: var(--line-hot); border-left-color: var(--accent); }
+    .algo-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    #algo-error {
+      font-family: var(--f-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      flex: 1;
+      min-width: 0;
+    }
+    #algo-error.ok { color: var(--lime); }
+
+    #scoreboard table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    #scoreboard td, #scoreboard th {
+      padding: 9px 6px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    #scoreboard th {
+      font-family: var(--f-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      font-weight: 400;
+    }
+    #scoreboard td.rank { font-family: var(--f-display); font-size: 1.05rem; color: var(--dim); width: 2.2em; }
+    #scoreboard td.steps { font-family: var(--f-mono); font-weight: 600; }
+    #scoreboard td.date { color: var(--dim); font-size: 0.75rem; }
+    #scoreboard tr.top1 td.rank { color: var(--accent); }
+    #scoreboard tr.top1 td.steps { color: var(--text); }
+    #scoreboard .empty { color: var(--dim); font-size: 0.85rem; }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-family: var(--f-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--dim);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ─── Responsive ──────────────────────────────────────── */
+    @media (max-width: 980px) {
+      .layout, .lower { grid-template-columns: minmax(0, 1fr); }
+      #controls { position: static; }
+    }
+    @media (max-width: 560px) {
+      .top { padding-top: 24px; }
+      #stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stat:nth-child(2) { border-right: 0; }
+      .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      #scoreboard td.date, #scoreboard th.date { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
 
-<h1>🐜 FOURMIZ</h1>
+<div class="wrap">
 
-<div id="controls">
-  <div class="ctrl-group">
+<header class="top">
+  <div class="brand">
+    <span class="kicker">// Simulateur de colonie</span>
+    <h1>Fourmi<span class="z">z</span></h1>
+    <p class="tagline">Quarante ouvrières, une carte hostile, <b>zéro plan</b>. Seulement l'instinct et des traînées de phéromones.</p>
+  </div>
+  <div class="status" role="status"><span class="dot"></span><span id="status-text">En attente</span></div>
+</header>
+
+<main class="layout">
+  <section class="stage">
+    <div id="stats" aria-live="off">
+      <div class="stat"><div class="k">Étape</div><div class="v" id="st-step">0</div></div>
+      <div class="stat"><div class="k">En recherche</div><div class="v" id="st-search">0</div></div>
+      <div class="stat hot"><div class="k">En retour</div><div class="v" id="st-return">0</div></div>
+      <div class="stat food">
+        <div class="k">Nourriture</div>
+        <div class="v"><span id="st-food">0</span><small id="st-food-total">/ 0</small></div>
+        <div class="bar"><i id="st-bar"></i></div>
+      </div>
+    </div>
+
+    <div id="canvas-wrapper">
+      <canvas id="canvas"></canvas>
+      <div id="win-overlay">
+        <span class="kicker">// Colonie rassasiée</span>
+        <h2>Victoire</h2>
+        <p id="win-msg"></p>
+        <button id="btnWinNew" class="primary">Nouvelle partie</button>
+      </div>
+    </div>
+
+    <div id="legend">
+      <div class="leg"><div class="swatch round" style="background:var(--accent);box-shadow:0 0 0 3px rgba(255,59,31,.25)"></div> Fourmilière</div>
+      <div class="leg"><div class="swatch round" style="background:var(--lime)"></div> Nourriture</div>
+      <div class="leg"><div class="swatch" style="background:var(--wall);outline:1px solid var(--line-hot)"></div> Obstacle</div>
+      <div class="leg"><div class="swatch" style="background:linear-gradient(90deg,transparent,var(--accent))"></div> Phéromones</div>
+      <div class="leg"><div class="swatch" style="background:rgba(241,236,228,.18)"></div> Traces d'exploration</div>
+      <div class="leg"><div class="swatch round" style="background:var(--text)"></div> Fourmi (cherche)</div>
+      <div class="leg"><div class="swatch round" style="background:var(--amber)"></div> Fourmi (retour)</div>
+    </div>
+  </section>
+
+  <aside id="controls" class="panel">
+    <h2 class="panel-title"><span class="num">01</span>Pilotage</h2>
     <button id="btnStart" class="primary">▶ Démarrer</button>
-    <button id="btnStep">⏭ Pas</button>
-    <button id="btnReset">↺ Reset</button>
-  </div>
-  <div class="ctrl-group">
-    <label for="speed">Vitesse</label>
-    <input type="range" id="speed" min="1" max="20" value="5">
-    <span id="speedVal" style="min-width:20px">5</span>
-  </div>
-  <div class="ctrl-group">
-    <label for="antCount">Fourmis</label>
-    <input type="number" id="antCount" min="1" max="300" value="40">
-  </div>
-  <div class="ctrl-group">
-    <label for="gridSize">Taille</label>
-    <input type="number" id="gridSize" min="10" max="80" value="35">
-  </div>
-  <div class="ctrl-group">
-    <button id="btnGenerate">🗺 Nouvelle carte</button>
-  </div>
-  <div class="ctrl-group">
-    <label for="fileInput">Charger .dat</label>
-    <input type="file" id="fileInput" accept=".dat">
-    <span id="file-error"></span>
-  </div>
+    <div class="ctrl-row">
+      <button id="btnStep">⏭ Pas</button>
+      <button id="btnReset">↺ Reset</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="field">
+      <div class="field-head"><label for="speed">Vitesse</label><span id="speedVal">5</span></div>
+      <input type="range" id="speed" min="1" max="20" value="5">
+    </div>
+    <div class="ctrl-row">
+      <div class="field">
+        <label for="antCount">Fourmis</label>
+        <input type="number" id="antCount" min="1" max="300" value="40">
+      </div>
+      <div class="field">
+        <label for="gridSize">Taille</label>
+        <input type="number" id="gridSize" min="10" max="80" value="35">
+      </div>
+    </div>
+    <button id="btnGenerate">Nouvelle carte</button>
+
+    <div class="sep"></div>
+
+    <div class="field">
+      <span class="label">Terrain personnalisé</span>
+      <label class="btn btn-file">
+        <input type="file" id="fileInput" accept=".dat" class="sr-only">
+        Charger un .dat
+      </label>
+      <span id="file-error"></span>
+    </div>
+  </aside>
+</main>
+
+<div class="lower">
+  <section id="algo-panel" class="panel">
+    <h2 class="panel-title"><span class="num">02</span>Algorithme de déplacement</h2>
+    <p class="algo-sub">
+      Calculer et retourner le <strong>poids</strong> d'une direction candidate (≥ 0 ; poids 0 = ignoré).
+      Variables : <code>mode</code> ("cherche"|"retour") · <code>angDiff</code> (0=tout droit…4=demi-tour) ·
+      <code>pheromone</code> (0-255) · <code>antiPhero</code> (0-255) ·
+      <code>distGain</code> (>0=rapproche nid) · <code>hasFood</code> (booléen).
+      Fonctions disponibles : <code>max</code> <code>min</code> <code>abs</code> <code>random</code>.
+    </p>
+    <textarea id="algo-code" spellcheck="false" aria-label="Code de l'algorithme de déplacement"></textarea>
+    <div class="algo-actions">
+      <button id="btnAlgoApply" class="primary">▶ Appliquer</button>
+      <button id="btnAlgoReset">↺ Réinitialiser</button>
+      <span id="algo-error"></span>
+    </div>
+  </section>
+
+  <section id="scoreboard" class="panel">
+    <h2 class="panel-title"><span class="num">03</span>Hall of fame</h2>
+    <div id="score-list"><span class="empty">Aucun score enregistré</span></div>
+  </section>
 </div>
 
-<div id="canvas-wrapper">
-  <canvas id="canvas"></canvas>
-  <div id="win-overlay">
-    <h2>🏆 VICTOIRE !</h2>
-    <p id="win-msg"></p>
-    <button id="btnWinNew">Nouvelle partie</button>
-  </div>
-</div>
+<footer>
+  <span>Fourmiz · Colonie simulée</span>
+  <span>Phéromones · Inertie · Instinct</span>
+</footer>
 
-<div id="legend">
-  <div class="leg"><div class="swatch" style="background:#7a3a10"></div> Fourmilière</div>
-  <div class="leg"><div class="swatch" style="background:#1a8a1a"></div> Nourriture</div>
-  <div class="leg"><div class="swatch" style="background:#555"></div> Obstacle</div>
-  <div class="leg"><div class="swatch" style="background:#c8b87a"></div> Sol</div>
-  <div class="leg"><div class="swatch" style="background:#cc2200"></div> Phéromones</div>
-  <div class="leg"><div class="swatch" style="background:#111;border-color:#888"></div> Fourmi (cherche)</div>
-  <div class="leg"><div class="swatch" style="background:#ffaa00"></div> Fourmi (retour)</div>
-</div>
-
-<div id="stats"></div>
-
-<div id="algo-panel">
-  <h3>⚙ ALGORITHME DE DÉPLACEMENT</h3>
-  <p class="algo-sub">
-    Calculer et retourner le <strong>poids</strong> d'une direction candidate (≥ 0 ; poids 0 = ignoré).
-    Variables : <code>mode</code> ("cherche"|"retour") · <code>angDiff</code> (0=tout droit…4=demi-tour) ·
-    <code>pheromone</code> (0-255) · <code>antiPhero</code> (0-255) ·
-    <code>distGain</code> (>0=rapproche nid) · <code>hasFood</code> (booléen).
-    Fonctions disponibles : <code>max</code> <code>min</code> <code>abs</code> <code>random</code>.
-  </p>
-  <textarea id="algo-code" spellcheck="false"></textarea>
-  <div class="algo-actions">
-    <button id="btnAlgoApply" class="primary">▶ Appliquer</button>
-    <button id="btnAlgoReset">↺ Réinitialiser</button>
-    <span id="algo-error"></span>
-  </div>
-</div>
-
-<div id="scoreboard">
-  <h3>🏅 TABLEAU DES SCORES</h3>
-  <div id="score-list"><span class="empty">Aucun score enregistré</span></div>
 </div>
 
 <script>
@@ -374,7 +666,7 @@ function compileAlgorithm(code) {
 function algoFeedback(message, isError) {
   const errEl = document.getElementById('algo-error');
   errEl.textContent = message;
-  errEl.style.color = isError ? '#ff6666' : '#66cc88';
+  errEl.classList.toggle('ok', !isError);
   if (!isError) setTimeout(() => { errEl.textContent = ''; }, 2000);
 }
 
@@ -634,17 +926,16 @@ function renderScoreboard() {
     el.innerHTML = '<span class="empty">Aucun score enregistré</span>';
     return;
   }
-  const medals = ['🥇','🥈','🥉'];
   const rows2 = scores.map((s, i) => `
-    <tr>
-      <td>${medals[i] || (i+1)}</td>
-      <td>${s.steps} étapes</td>
-      <td>${s.ants} fourmis</td>
+    <tr${i === 0 ? ' class="top1"' : ''}>
+      <td class="rank">${String(i + 1).padStart(2, '0')}</td>
+      <td class="steps">${s.steps}</td>
+      <td>${s.ants}</td>
       <td>${s.size}×${s.size}</td>
-      <td style="color:#666">${s.date}</td>
+      <td class="date">${s.date}</td>
     </tr>`).join('');
   el.innerHTML = `<table>
-    <tr><th></th><th>Étapes</th><th>Fourmis</th><th>Carte</th><th>Date</th></tr>
+    <tr><th>#</th><th>Étapes</th><th>Fourmis</th><th>Carte</th><th class="date">Date</th></tr>
     ${rows2}
   </table>`;
 }
@@ -655,6 +946,7 @@ function triggerWin() {
   cancelAnimationFrame(animId);
   btnStart.textContent = '▶ Démarrer';
   btnStart.disabled = true;
+  syncRunUI();
 
   const antCount = ants.length;
   const entry = {
@@ -666,8 +958,8 @@ function triggerWin() {
   saveScore(entry);
   renderScoreboard();
 
-  document.getElementById('win-msg').textContent =
-    `Toute la nourriture collectée en ${stepCount} étapes avec ${antCount} fourmis !`;
+  document.getElementById('win-msg').innerHTML =
+    `Toute la nourriture rapportée en <b>${stepCount} étapes</b> avec <b>${antCount} fourmis</b>.`;
   document.getElementById('win-overlay').classList.add('show');
   render();
 }
@@ -701,106 +993,209 @@ function simStep() {
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const stageEl = document.querySelector('.stage');
+
+// Palette du canvas (alignée sur les variables CSS)
+const COL_GROUND = '#15120f';
+const COL_WALL   = '#2e2925';
+const COL_ACCENT = [255, 59, 31];    // phéromones, fourmilière
+const COL_BONE   = [241, 236, 228];  // traces d'exploration, fourmis en recherche
+const COL_AMBER  = '#ffb400';
+const COL_LIME   = '#c6ff3d';
+
+// Calque des phéromones : 1 pixel par case, agrandi et flouté au rendu
+const pheroCanvas = document.createElement('canvas');
+const pheroCtx = pheroCanvas.getContext('2d');
+let pheroImg = null;
+
+const hud = {
+  step:   document.getElementById('st-step'),
+  search: document.getElementById('st-search'),
+  ret:    document.getElementById('st-return'),
+  food:   document.getElementById('st-food'),
+  total:  document.getElementById('st-food-total'),
+  bar:    document.getElementById('st-bar'),
+};
 
 function cellSize() {
-  const maxW = Math.min(window.innerWidth - 24, 780);
-  const maxH = Math.max(200, window.innerHeight - 320);
+  const maxW = Math.min(stageEl.clientWidth - 16, 900);
+  const maxH = Math.max(300, window.innerHeight - 200);
   return Math.max(4, Math.floor(Math.min(maxW / cols, maxH / rows)));
 }
 
+function drawPheromones(W, H, cs) {
+  if (pheroCanvas.width !== cols || pheroCanvas.height !== rows) {
+    pheroCanvas.width = cols;
+    pheroCanvas.height = rows;
+    pheroImg = pheroCtx.createImageData(cols, rows);
+  }
+  const d = pheroImg.data;
+  let p = 0;
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++, p += 4) {
+      const c = grid[i][j];
+      // Exposant < 1 : les pistes faibles restent visibles sans noyer la carte
+      const t = Math.pow(Math.min(c.pheromone / PHEROMONE_MAX, 1), 0.75);
+      const a = Math.min(c.pheromoneNeg / ANTIPHEROMONE_MAX, 1) * 0.16;
+      const sum = t + a;
+      if (sum <= 0) { d[p + 3] = 0; continue; }
+      d[p]     = (COL_ACCENT[0] * t + COL_BONE[0] * a) / sum;
+      d[p + 1] = (COL_ACCENT[1] * t + COL_BONE[1] * a) / sum;
+      d[p + 2] = (COL_ACCENT[2] * t + COL_BONE[2] * a) / sum;
+      d[p + 3] = Math.min(1, sum) * 255;
+    }
+  }
+  pheroCtx.putImageData(pheroImg, 0, 0);
+
+  ctx.imageSmoothingEnabled = true;
+  // Halo diffus…
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.5;
+  ctx.filter = `blur(${Math.max(2, cs * 0.6)}px)`;
+  ctx.drawImage(pheroCanvas, 0, 0, W, H);
+  ctx.restore();
+  // …puis cœur de la piste, plus net
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.drawImage(pheroCanvas, 0, 0, W, H);
+  ctx.restore();
+}
+
 function render() {
-  const cs = cellSize();
-  const W = cols * cs, H = rows * cs;
-  if (canvas.width !== W || canvas.height !== H) {
-    canvas.width  = W;
-    canvas.height = H;
+  const cs  = cellSize();
+  const W   = cols * cs, H = rows * cs;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const now = performance.now() / 1000;
+
+  // Sol
+  ctx.fillStyle = COL_GROUND;
+  ctx.fillRect(0, 0, W, H);
+
+  // Trame discrète
+  if (cs >= 10) {
+    ctx.fillStyle = 'rgba(241,236,228,0.05)';
+    for (let i = 1; i < rows; i++)
+      for (let j = 1; j < cols; j++)
+        ctx.fillRect(j * cs - 0.5, i * cs - 0.5, 1, 1);
   }
 
-  // Draw cells
+  drawPheromones(W, H, cs);
+
+  // Obstacles, nourriture, fourmilière
+  const gap = cs >= 8 ? 1 : 0;
   for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
       const cell = grid[i][j];
+      if (cell.type === CELL_EMPTY) continue;
       const x = j * cs, y = i * cs;
+      const cx = x + cs / 2, cy = y + cs / 2;
 
-      let r, g, b;
-      switch (cell.type) {
-        case CELL_WALL:
-          r = 70; g = 70; b = 70; break;
-        case CELL_NEST:
-          r = 122; g = 58; b = 16; break;
-        case CELL_FOOD:
-          r = 26; g = 138; b = 26; break;
-        default: {
-          // Sol sable #c8b064 → pic de phéromone #cc2200 (interpolation linéaire)
-          const t = Math.min(cell.pheromone / PHEROMONE_MAX, 1);
-          r = Math.round(200 * (1-t) + 204 * t);
-          g = Math.round(176 * (1-t) + 34 * t);
-          b = Math.round(100 * (1-t) + 0  * t);
-          break;
+      if (cell.type === CELL_WALL) {
+        ctx.fillStyle = COL_WALL;
+        ctx.fillRect(x + gap / 2, y + gap / 2, cs - gap, cs - gap);
+        if (cs >= 8) {
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+          ctx.fillRect(x + gap / 2, y + gap / 2, cs - gap, 1);
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(x + gap / 2, y + cs - gap / 2 - 1, cs - gap, 1);
         }
-      }
 
-      ctx.fillStyle = `rgb(${r},${g},${b})`;
-      ctx.fillRect(x, y, cs, cs);
-
-      // Thin grid lines for larger cells
-      if (cs >= 8) {
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.lineWidth = 0.5;
-        ctx.strokeRect(x + 0.25, y + 0.25, cs - 0.5, cs - 0.5);
-      }
-
-      // Food amount label
-      if (cell.type === CELL_FOOD && cs >= 14) {
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.45))}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(cell.food, x + cs / 2, y + cs / 2);
-      }
-
-      // Nest indicator
-      if (cell.type === CELL_NEST) {
-        const cx2 = x + cs / 2, cy2 = y + cs / 2;
-        ctx.fillStyle = '#ffdd88';
-        ctx.beginPath();
-        ctx.arc(cx2, cy2, Math.max(2, cs * 0.28), 0, Math.PI * 2);
-        ctx.fill();
-        if (cs >= 12) {
-          ctx.fillStyle = '#7a3a10';
-          ctx.font = `bold ${Math.max(7, Math.floor(cs * 0.35))}px monospace`;
+      } else if (cell.type === CELL_FOOD) {
+        const r = cs * (0.2 + 0.2 * Math.min(1, cell.food / 4));
+        ctx.fillStyle = 'rgba(198,255,61,0.14)';
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = COL_LIME;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        if (cs >= 18) {
+          ctx.fillStyle = '#0b0a09';
+          ctx.font = `700 ${Math.floor(cs * 0.36)}px 'JetBrains Mono', monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('🏠', cx2, cy2);
+          ctx.fillText(cell.food, cx, cy + 0.5);
         }
+
+      } else if (cell.type === CELL_NEST) {
+        // Onde qui pulse autour du nid
+        for (let k = 0; k < 2; k++) {
+          const ph = ((now / 1.6) + k / 2) % 1;
+          ctx.strokeStyle = `rgba(255,59,31,${0.55 * (1 - ph)})`;
+          ctx.lineWidth = Math.max(1, cs * 0.08);
+          ctx.beginPath();
+          ctx.arc(cx, cy, cs * (0.5 + ph * 1.6), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(255,59,31,0.25)';
+        ctx.beginPath(); ctx.arc(cx, cy, cs * 0.75, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgb(${COL_ACCENT})`;
+        ctx.beginPath(); ctx.arc(cx, cy, Math.max(2.5, cs * 0.42), 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = COL_GROUND;
+        ctx.beginPath(); ctx.arc(cx, cy, Math.max(1, cs * 0.15), 0, Math.PI * 2); ctx.fill();
       }
     }
   }
 
-  // Draw ants
-  const antR = Math.max(1.2, cs * 0.2);
-  for (const ant of ants) {
-    const x = ant.col * cs + cs / 2;
-    const y = ant.row * cs + cs / 2;
-    ctx.fillStyle = ant.returning ? '#ffaa00' : '#0a0a0a';
-    ctx.beginPath();
-    ctx.arc(x, y, antR, 0, Math.PI * 2);
-    ctx.fill();
-    // Tiny outline for visibility
-    if (cs >= 8) {
-      ctx.strokeStyle = ant.returning ? '#ffeeaa' : '#555';
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
+  // Fourmis — orientées selon leur cap, légèrement décalées pour ne pas se superposer
+  const detailed = cs >= 7;
+  const bone = `rgb(${COL_BONE})`;
+  for (let k = 0; k < ants.length; k++) {
+    const ant = ants[k];
+    const jx = (((k * 37) % 11) / 11 - 0.5) * 0.4 * cs;
+    const jy = (((k * 53) % 13) / 13 - 0.5) * 0.4 * cs;
+    const x = ant.col * cs + cs / 2 + jx;
+    const y = ant.row * cs + cs / 2 + jy;
+
+    if (!detailed) {
+      ctx.fillStyle = ant.returning ? COL_AMBER : bone;
+      ctx.fillRect(x - 1, y - 1, 2.5, 2.5);
+      continue;
     }
+
+    if (ant.returning) {
+      ctx.fillStyle = 'rgba(255,180,0,0.16)';
+      ctx.beginPath(); ctx.arc(x, y, cs * 0.55, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.atan2(DIR_DR[ant.dir], DIR_DC[ant.dir]));
+    ctx.fillStyle = ant.returning ? COL_AMBER : bone;
+    // abdomen, thorax, tête
+    ctx.beginPath(); ctx.ellipse(-cs * 0.17, 0, cs * 0.15, cs * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cs * 0.02, 0, cs * 0.08, cs * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cs * 0.16, 0, cs * 0.075, 0, Math.PI * 2); ctx.fill();
+    if (ant.returning) {
+      ctx.fillStyle = COL_LIME;
+      ctx.beginPath(); ctx.arc(cs * 0.3, 0, cs * 0.07, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
 
-  // Stats line
+  // HUD
   let returning = 0;
   for (const a of ants) if (a.returning) returning++;
-  const searching = ants.length - returning;
-  const pct = foodTotal > 0 ? Math.round(foodCollected / foodTotal * 100) : 0;
-  document.getElementById('stats').textContent =
-    `Étape: ${stepCount} | En recherche: ${searching} | En retour: ${returning} | Nourriture: ${foodCollected}/${foodTotal} (${pct}%)`;
+  const pct = foodTotal > 0 ? foodCollected / foodTotal * 100 : 0;
+  hud.step.textContent   = stepCount;
+  hud.search.textContent = ants.length - returning;
+  hud.ret.textContent    = returning;
+  hud.food.textContent   = foodCollected;
+  hud.total.textContent  = `/ ${foodTotal}`;
+  hud.bar.style.width    = pct + '%';
+}
+
+// Reflète l'état de la simulation dans l'interface (statut, bouton principal)
+function syncRunUI() {
+  document.body.classList.toggle('is-running', running);
+  document.body.classList.toggle('is-won', won);
+  document.getElementById('status-text').textContent =
+    won ? 'Colonie rassasiée' : running ? 'En direct' : 'En attente';
 }
 
 // ─── Animation loop ───────────────────────────────────────────────────────────
@@ -825,6 +1220,7 @@ function stopSimulation() {
   btnStart.disabled = false;
   cancelAnimationFrame(animId);
   document.getElementById('win-overlay').classList.remove('show');
+  syncRunUI();
 }
 
 // Régénère une carte aléatoire à partir des réglages courants
@@ -833,6 +1229,7 @@ function newGame() {
   const antCount = parseInt(document.getElementById('antCount').value, 10);
   const size     = parseInt(document.getElementById('gridSize').value, 10);
   generateRandom(size, size, antCount);
+  syncRunUI();
   render();
 }
 
@@ -840,6 +1237,7 @@ btnStart.addEventListener('click', () => {
   if (won) return;
   running = !running;
   btnStart.textContent = running ? '⏸ Pause' : '▶ Démarrer';
+  syncRunUI();
   if (running) animId = requestAnimationFrame(loop);
 });
 
@@ -891,6 +1289,9 @@ document.getElementById('algo-code').value = DEFAULT_ALGORITHM;
 generateRandom(35, 35, 40);
 render();
 renderScoreboard();
+syncRunUI();
+// Recalcule la taille une fois les polices chargées (la mise en page peut bouger)
+if (document.fonts) document.fonts.ready.then(() => { if (!running) render(); });
 </script>
 </body>
 </html>
